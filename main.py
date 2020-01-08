@@ -24,8 +24,8 @@ render_space = {}
 text_space = {}
 load = 0
 
-map_x_width = 0
-map_y_width = 0
+map_x_width = 1000
+map_y_width = 1000
 static = False
 selector = 2
 tile_sizes = {}
@@ -72,6 +72,10 @@ class Tile():
         self.randomvar = random.randint(1,4)
         self.check_passable()
         self.image = tile_set[self.randomvar]
+        self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
+        self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
+        self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
+
         
     def renderTile(self):
         global screen_origin_x
@@ -251,25 +255,30 @@ def tileGen(sizeX, sizeY):
                         
 def loadData():
     global master_tile_table
+    #game_clean()
     with open('map_data.pkl', 'rb') as input:
-        master_tile_table = pickle.load(input)    
-    searchrange = int(len(master_tile_table)/2)    
-    for x in range(-searchrange, searchrange):
-        for y in range(-searchrange, searchrange):
-            global tile_set
-            openTile = master_tile_table[x][y]
-            openTile.image = tile_set[openTile.randomvar]
+        master_tile_table = pickle.load(input)
+        for x in master_tile_table:
+            for y in master_tile_table[x]:
+                master_tile_table[x][y].image = tile_set[master_tile_table[x][y].randomvar]
+
+    print("Data loaded!")
 
 def saveData():
     global master_tile_table
-    searchrange = int(len(master_tile_table)/2)
-    for x in range(-searchrange, searchrange):
-        for y in range(-searchrange, searchrange):
-            openTile = master_tile_table[x][y]
-            openTile.image = ""
+    load_all_tiles()
+    
+    for x in master_tile_table:
+        for y in master_tile_table[x]:
+            master_tile_table[x][y].image = ""
+            master_tile_table[x][y].collision = ""
+
+    print(master_tile_table[1][2].image)
             
     with open('map_data.pkl', 'wb') as output:
-        pickle.dump(masterTileTable, output, pickle.HIGHEST_PROTOCOL) 
+        pickle.dump(master_tile_table, output, pickle.HIGHEST_PROTOCOL)
+        
+    print("Data saved!")
 
 def render_screen():
     for x in master_tile_table:
@@ -454,7 +463,7 @@ def resume_game():
     global game_status
     render_clear()
     game_status = 1
-    pygame.mouse.set_visible(False)
+    #pygame.mouse.set_visible(False)
 
 def game_start():
     global start_game
@@ -462,7 +471,7 @@ def game_start():
     tileGen(map_x_width, map_y_width)
     global player
     global enemy
-    pygame.mouse.set_visible(False)
+    #pygame.mouse.set_visible(False)
     player = Player(0,0,1)
     enemy = Entity(4,0,1)
     render_screen()
@@ -528,10 +537,10 @@ while running:
                     load_tiles()
 
                 if event.key == pygame.K_l:
-                    map_gen()
+                    saveData()
 
                 if event.key == pygame.K_o:
-                    load_all_tiles()
+                    loadData()
 
                 if event.key == pygame.K_p:
                     print(player.occupied_tile.image)
@@ -588,7 +597,19 @@ while running:
                     camera_offset_changex = 0
                 if event.key == pygame.K_s or event.key == pygame.K_w:
                     camera_offset_changey = 0
-
+                    
+        if game_status == 1:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                for x in master_tile_table:
+                    for y in master_tile_table[x]:    
+                        try:
+                            if master_tile_table[x][y].collision.collidepoint(event.pos):
+                                print(master_tile_table[x][y].randomvar)
+                                
+                        except:
+                            traceback.print_exc()
+                            pass
+                    
         if game_status == 0 or 2:
             if event.type == pygame.MOUSEBUTTONDOWN:
                 for button in list(render_space):

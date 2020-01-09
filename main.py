@@ -24,8 +24,8 @@ render_space = {}
 text_space = {}
 load = 0
 
-map_x_width = 1000
-map_y_width = 1000
+map_x_width = 0
+map_y_width = 0
 static = False
 selector = 2
 tile_sizes = {}
@@ -83,6 +83,7 @@ class Tile():
         global tile_size
         self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
         self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
+        self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
         screen.blit(self.image,(self.screenx, self.screeny))
         
     def check_passable(self):
@@ -184,7 +185,8 @@ class Player(Entity):
     
         
 class Item():
-    def __init__(self):
+    def __init__(self, item_name):
+        self.item_name = item_name
         self.id = 1
 
 class Button():
@@ -267,13 +269,15 @@ def loadData():
 def saveData():
     global master_tile_table
     load_all_tiles()
-    
+
     for x in master_tile_table:
         for y in master_tile_table[x]:
             master_tile_table[x][y].image = ""
             master_tile_table[x][y].collision = ""
 
-    print(master_tile_table[1][2].image)
+    for x in master_entity_table:
+        master_entity_table[x].image = ""
+
             
     with open('map_data.pkl', 'wb') as output:
         pickle.dump(master_tile_table, output, pickle.HIGHEST_PROTOCOL)
@@ -381,6 +385,22 @@ def set_map_size(x):
     global map_y_width
     map_x_width = x
     map_y_width = x
+
+def set_map_size_to_game(x):
+    global map_x_width
+    global map_y_width
+    map_x_width = x
+    map_y_width = x
+    load_game()
+
+def set_tile_size(passed_selector):
+    global selector
+    global tile_set
+    global tile_size
+    selector = passed_selector
+    tile_size = tile_sizes[passed_selector]
+    tile_load()
+    ent_sprite_load()
     
 
 def button_render():
@@ -406,10 +426,17 @@ def render_clear():
 
 def start_menu():
     global game_status
+    if map_x_width == 0:
+        func = "map_options_menu"
+        arg = True
+    else:
+        func = "load_game"
+        arg = ""
+        
     game_clean()
     game_status = 0
     render_clear()
-    start_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Start", "load_game", "")
+    start_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Start", func, arg)
     load_button =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Load", "", "")
     options_button =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Options", "options_menu", "" )
     quit_button =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Quit", "quit_game", "" )
@@ -435,30 +462,51 @@ def pause_menu():
 
 def options_menu():
     render_clear()
-    map_options_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Map Size", "map_options_menu", "")
+    map_options_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Map Size", "map_options_menu", "False")
+    tile_size_button = Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Tile Size", "tile_size_menu", "")
     render_space[1] = map_options_button
+    render_space[2] = tile_size_button
     title = Text(screen_origin_x, screen_origin_y/2-100, "Options", 5)
     back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "start_menu", "")
     text_space[1] = title
-    render_space[2] = back
+    render_space[3] = back
     pygame.mouse.set_visible(True)
 
-def map_options_menu():
+def map_options_menu(start_game):
     render_clear()
-    func = "set_map_size"
+    if start_game == True:
+        func = "set_map_size_to_game"
+        func2 = "start_menu"
+    else:
+        func = "set_map_size"
+        func2 = "options_menu"
     
     title = Text(screen_origin_x, screen_origin_y/2-100, "Map Size", 5)
-    map_size_50 = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "50x50", "set_map_size", 50)
-    map_size_100 =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "100x100", "set_map_size", 100)
-    map_size_200 =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "200x200", "set_map_size", 200)
-    back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "options_menu", "")
+    map_size_50 = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "50x50", func, 50)
+    map_size_100 =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "100x100", func, 100)
+    map_size_200 =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "200x200", func, 200)
+    back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", func2, "")
     render_space[1] = map_size_50
     render_space[2] = map_size_100
     render_space[3] = map_size_200
     render_space[4] = back
     text_space[1] = title
-    pygame.mouse.set_visible(True)    
+    pygame.mouse.set_visible(True)
 
+def tile_size_menu():
+    render_clear()
+    title = Text(screen_origin_x, screen_origin_y/2-100, "Tile Size", 5)
+    tile_size_128 = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "128x128", "set_tile_size", 0)
+    tile_size_64 =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "64x64", "set_tile_size", 1)
+    tile_size_32 =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "32x32", "set_tile_size", 2)
+    back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "options_menu", "")
+    render_space[1] = tile_size_128
+    render_space[2] = tile_size_64
+    render_space[3] = tile_size_32
+    render_space[4] = back
+    text_space[1] = title
+    pygame.mouse.set_visible(True)
+    
 def resume_game():
     global game_status
     render_clear()
@@ -541,6 +589,11 @@ while running:
 
                 if event.key == pygame.K_o:
                     loadData()
+
+                if event.key == pygame.K_u:
+                    new_item = Item("CoolThing")
+                    player.inventory.append(new_item)
+                    print(player.inventory)
 
                 if event.key == pygame.K_p:
                     print(player.occupied_tile.image)

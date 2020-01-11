@@ -45,36 +45,43 @@ font_title = pygame.font.SysFont('Arial', 60)
 
     
 ent_sprite_set = {}
-def tile_load():
-    global tile_set
-    del tile_set
-    tile_set = {}    
+image_set = {}
+
+def images_load_test():
+    global image_set
+    for folders in os.listdir(".//resources"):
+        try:
+            for images in os.listdir(".//resources/%s" %(folders)):
+                image_set[folders] = pygame.image.load(".//%s/%s" %(folders, images))
+            
+        except:
+            pass
+        
+    
+    
+
+def images_load():
+    global tile_set, ent_sprite_set
+    del tile_set, ent_sprite_set
+    tile_set = {}
+    ent_sprite_set = {}
+    
     for images in os.listdir(".//resources/tiles"):
         tile_set[images] = pygame.image.load(".//resources/tiles/%s" %(images))
         tile_set[images] = pygame.transform.scale(tile_set[images],(tile_size, tile_size))
 
+    for images in os.listdir(".//resources/sprites"):
+        ent_sprite_set[images] = pygame.image.load(".//resources/sprites/%s" %(images))
+        ent_sprite_set[images] = pygame.transform.scale(ent_sprite_set[images],(tile_size, tile_size))
     
     for x in master_tile_table:
         for y in master_tile_table[x]:
             master_tile_table[x][y].reload_image()
-
-                                                 
-def ent_sprite_load():
-    global ent_sprite_set
-    del ent_sprite_set
-    ent_sprite_set = {}
-    
-    for images in os.listdir(".//resources/sprites"):
-        ent_sprite_set[images] = pygame.image.load(".//resources/sprites/%s" %(images))
-        ent_sprite_set[images] = pygame.transform.scale(ent_sprite_set[images],(tile_size, tile_size))
-
+            
     for x in master_entity_table:
         master_entity_table[x].reload_image()
 
-    print(ent_sprite_set)
-        
-tile_load()
-ent_sprite_load()
+images_load()        
 
 
 #Base Classes
@@ -464,8 +471,8 @@ def set_tile_size(passed_selector):
     global tile_size
     selector = passed_selector
     tile_size = tile_sizes[passed_selector]
-    tile_load()
-    ent_sprite_load()
+
+    images_load()
     
 
 def button_render():
@@ -583,8 +590,7 @@ def game_start():
     tileGen(map_x_width, map_y_width)
     global player
     global enemy
-    tile_load()
-    ent_sprite_load()
+    images_load()
     player = Player(0,0,"player.png")
     enemy = Entity(4,0,"player.png")
     render_screen()
@@ -668,8 +674,7 @@ while running:
                         selector += 1
                         tile_size = tile_sizes[selector]
                         print(tile_size)
-                        tile_load()
-                        ent_sprite_load()
+                        images_load()
                         load_tiles()
                         render_screen()
                     except:
@@ -681,8 +686,7 @@ while running:
                         selector -= 1
                         tile_size = tile_sizes[selector]
                         print(tile_size)
-                        tile_load()
-                        ent_sprite_load()
+                        images_load()
                         load_tiles()
                         render_screen()
                     except:

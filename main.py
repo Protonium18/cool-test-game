@@ -1,4 +1,4 @@
-import random, pickle, pygame, math, sys, traceback
+import random, pickle, pygame, math, sys, traceback, os
 
 pygame.init()
 window_x = pygame.display.Info().current_w
@@ -27,7 +27,7 @@ load = 0
 map_x_width = 0
 map_y_width = 0
 static = False
-selector = 2
+selector = 0
 tile_sizes = {}
 tile_sizes[0] = 128
 tile_sizes[1] = 64
@@ -43,40 +43,59 @@ game_status = 0
 font_default = pygame.font.SysFont('Arial', 30)
 font_title = pygame.font.SysFont('Arial', 60)
 
-
+    
 ent_sprite_set = {}
 def tile_load():
-    for i in range (1, 5):
-        tile_set[i] = pygame.image.load("resources/tiles/tile_grass%s.png" %(i))
-        tile_set[i] = pygame.transform.scale(tile_set[i],(tile_size, tile_size))
-   
+    global tile_set
+    del tile_set
+    tile_set = {}    
+    for images in os.listdir(".//resources/tiles"):
+        tile_set[images] = pygame.image.load(".//resources/tiles/%s" %(images))
+        tile_set[images] = pygame.transform.scale(tile_set[images],(tile_size, tile_size))
+
+    
+    for x in master_tile_table:
+        for y in master_tile_table[x]:
+            master_tile_table[x][y].reload_image()
+
+                                                 
 def ent_sprite_load():
-    x=1
-    ent_sprite_set[x] = pygame.image.load("resources/player.png")
-    ent_sprite_set[x] = pygame.transform.scale(ent_sprite_set[x],(tile_size, tile_size))
-    for ent in range(1,len(master_entity_table)+1):
-        master_entity_table[ent].image = ent_sprite_set[x]
-        
+    global ent_sprite_set
+    del ent_sprite_set
+    ent_sprite_set = {}
+    
+    for images in os.listdir(".//resources/sprites"):
+        ent_sprite_set[images] = pygame.image.load(".//resources/sprites/%s" %(images))
+        ent_sprite_set[images] = pygame.transform.scale(ent_sprite_set[images],(tile_size, tile_size))
+
+    for x in master_entity_table:
+        master_entity_table[x].reload_image()
+
+    print(ent_sprite_set)
         
 tile_load()
 ent_sprite_load()
 
+
+#Base Classes
 class Tile():
     def __init__(self, worldX, worldY):
         global tile_set
+        self.type = "Generic"
         self.worldX = worldX
         self.worldY = worldY
         self.inventory = list()
         self.ents = list()
         self.environment = ""
-        self.randomvar = random.randint(1,4)
-        self.check_passable()
-        self.image = tile_set[self.randomvar]
+        self.is_passable = True
+        self.orig_image = "tile_grass2.png"
+        self.image = tile_set[self.orig_image]
         self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
         self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
         self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
 
         
+
     def renderTile(self):
         global screen_origin_x
         global screen_origin_y
@@ -84,18 +103,21 @@ class Tile():
         self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
         self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
         self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
-        screen.blit(self.image,(self.screenx, self.screeny))
-        
-    def check_passable(self):
-        if self.randomvar == 4:
-            self.is_passable = False
+        try:
+            screen.blit(self.image,(self.screenx, self.screeny))
+        except:
+            pass
 
-        else:
-            self.is_passable = True
+    def reload_image(self):
+        self.image = tile_set[self.orig_image]
+        self.image = pygame.transform.rotate(self.image, 90*random.randint(1,4))
+
+    def interact(self):
+        return()
             
             
 class Entity():
-    def __init__(self, worldX, worldY, image_id):
+    def __init__(self, worldX, worldY, orig_image):
         self.worldX = worldX
         self.worldY = worldY
         self.inventory = list()
@@ -103,7 +125,8 @@ class Entity():
         self.accessTile(self.worldX, self.worldY).ents.append(self)
         self.occupied_tile = self.accessTile(self.worldX, self.worldY)
         master_entity_table[len(master_entity_table)+1] = self
-        self.image = ent_sprite_set[image_id]
+        self.orig_image = orig_image
+        self.image = ent_sprite_set[orig_image]
 
     def entSetPos(self, x, y):
         self.worldX = x
@@ -138,7 +161,14 @@ class Entity():
         if self.screenx > window_x+256 or self.screeny > window_y+256:
             pass
         else:
-            screen.blit(self.image,(self.screenx, self.screeny))
+            try:
+                screen.blit(self.image,(self.screenx, self.screeny))
+            except:
+                pass
+
+    def reload_image(self):
+        self.image = ent_sprite_set[self.orig_image]
+        print("image reloaded")
         
 class Player(Entity):
     def __init__(self, worldX, worldY, image_id):
@@ -180,7 +210,10 @@ class Player(Entity):
         else:
             self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
             self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
-        screen.blit(self.image,(self.screenx, self.screeny))
+        try:
+            screen.blit(self.image,(self.screenx, self.screeny))
+        except:
+            pass
 
     
         
@@ -240,8 +273,15 @@ class Image():
     def render(self):
         screen.blit(self.image, (self.pos_x - self.image.get_width() // 2, self.pos_y - self.image.get_height() // 2))
 
-
-
+#Tile Subclasses
+class Tile_rock(Tile):
+    def __init__(self, worldX, worldY):
+        super().__init__(worldX, worldY)
+        self.type = "Rock"
+        self.is_passable = False
+        self.orig_image = "tile3.png"
+        
+        
         
 def tileGen(sizeX, sizeY):
     global master_tile_table
@@ -257,23 +297,43 @@ def tileGen(sizeX, sizeY):
                         
 def loadData():
     global master_tile_table
-    #game_clean()
+    global master_entity_table
+    global unloaded_tile_table
+    global player
+    game_clean()
     with open('map_data.pkl', 'rb') as input:
         master_tile_table = pickle.load(input)
+        master_entity_table = pickle.load(input)
+        unloaded_tile_table = pickle.load(input)
+        player = pickle.load(input)
+        
         for x in master_tile_table:
             for y in master_tile_table[x]:
-                master_tile_table[x][y].image = tile_set[master_tile_table[x][y].randomvar]
+                master_tile_table[x][y].image = tile_set[master_tile_table[x][y].orig_image]
 
+        for x in unloaded_tile_table:
+            for y in unloaded_tile_table[x]:
+                unloaded_tile_table[x][y].image = tile_set[unloaded_tile_table[x][y].orig_image]
+
+        for x in master_entity_table:
+            master_entity_table[x].image = ent_sprite_set[master_entity_table[x].orig_image]
+
+    player.entMove(0,0)
+    dyn_unload
     print("Data loaded!")
 
 def saveData():
     global master_tile_table
+    global unloaded_tile_table
     load_all_tiles()
 
     for x in master_tile_table:
         for y in master_tile_table[x]:
             master_tile_table[x][y].image = ""
-            master_tile_table[x][y].collision = ""
+
+    for x in unloaded_tile_table:
+        for y in unloaded_tile_table[x]:
+            unloaded_tile_table[x][y].image = ""
 
     for x in master_entity_table:
         master_entity_table[x].image = ""
@@ -281,6 +341,9 @@ def saveData():
             
     with open('map_data.pkl', 'wb') as output:
         pickle.dump(master_tile_table, output, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(master_entity_table, output, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(unloaded_tile_table, output, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(player, output, pickle.HIGHEST_PROTOCOL)
         
     print("Data saved!")
 
@@ -306,6 +369,7 @@ def unload_tiles():
                 unloaded_tile_table[x][y] = master_tile_table[x][y]
                 del master_tile_table[x][y]
             except:
+                traceback.print_exc()
                 pass
     player.last_unloaded_pos_x = player.occupied_tile.worldX
     player.last_unloaded_pos_y = player.occupied_tile.worldY
@@ -347,6 +411,7 @@ def load_tiles():
             try:
                 master_tile_table[x][y] = unloaded_tile_table[x][y]
                 del unloaded_tile_table[x][y]
+                master_tile_table[x][y].reload_image()
             except:
                 pass
     player.last_unloaded_pos_x = player.occupied_tile.worldX
@@ -511,7 +576,6 @@ def resume_game():
     global game_status
     render_clear()
     game_status = 1
-    #pygame.mouse.set_visible(False)
 
 def game_start():
     global start_game
@@ -519,9 +583,10 @@ def game_start():
     tileGen(map_x_width, map_y_width)
     global player
     global enemy
-    #pygame.mouse.set_visible(False)
-    player = Player(0,0,1)
-    enemy = Entity(4,0,1)
+    tile_load()
+    ent_sprite_load()
+    player = Player(0,0,"player.png")
+    enemy = Entity(4,0,"player.png")
     render_screen()
     unload_tiles()
     load_tiles()
@@ -605,7 +670,6 @@ while running:
                         print(tile_size)
                         tile_load()
                         ent_sprite_load()
-                        reload_tile_image()
                         load_tiles()
                         render_screen()
                     except:
@@ -619,11 +683,11 @@ while running:
                         print(tile_size)
                         tile_load()
                         ent_sprite_load()
-                        reload_tile_image()
                         load_tiles()
                         render_screen()
                     except:
                         pass
+                        traceback.print_exc()
                         print("Key error!")
                     
 
@@ -657,7 +721,8 @@ while running:
                     for y in master_tile_table[x]:    
                         try:
                             if master_tile_table[x][y].collision.collidepoint(event.pos):
-                                print(master_tile_table[x][y].randomvar)
+                                master_tile_table[x][y] = Tile_rock(x, y)
+                                master_tile_table[x][y].reload_image()
                                 
                         except:
                             traceback.print_exc()

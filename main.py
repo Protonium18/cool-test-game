@@ -38,56 +38,42 @@ tile_sizes[5] = 4
 tile_sizes[6] = 2
 tile_sizes[7] = 1
 tile_size = tile_sizes[selector]
-tile_set = {}
 game_status = 0
 font_default = pygame.font.SysFont('Arial', 30)
 font_title = pygame.font.SysFont('Arial', 60)
 
-    
-ent_sprite_set = {}
 image_set = {}
 
-def images_load_test():
+def images_load():
     global image_set
+    del image_set
+    image_set = {}
     for folders in os.listdir(".//resources"):
-        try:
-            for images in os.listdir(".//resources/%s" %(folders)):
-                image_set[folders] = pygame.image.load(".//%s/%s" %(folders, images))
-            
-        except:
+        if folders == "extra":
             pass
         
-    
-    
-
-def images_load():
-    global tile_set, ent_sprite_set
-    del tile_set, ent_sprite_set
-    tile_set = {}
-    ent_sprite_set = {}
-    
-    for images in os.listdir(".//resources/tiles"):
-        tile_set[images] = pygame.image.load(".//resources/tiles/%s" %(images))
-        tile_set[images] = pygame.transform.scale(tile_set[images],(tile_size, tile_size))
-
-    for images in os.listdir(".//resources/sprites"):
-        ent_sprite_set[images] = pygame.image.load(".//resources/sprites/%s" %(images))
-        ent_sprite_set[images] = pygame.transform.scale(ent_sprite_set[images],(tile_size, tile_size))
-    
+        else:
+            for images in os.listdir(".//resources/%s" %(folders)):
+                print(folders)
+                image_set[images] = pygame.image.load(".//resources/%s/%s" %(folders, images))
+                image_set[images] = pygame.transform.scale(image_set[images],(tile_size, tile_size))
+            
+            traceback.print_exc()
+        
     for x in master_tile_table:
         for y in master_tile_table[x]:
             master_tile_table[x][y].reload_image()
             
     for x in master_entity_table:
         master_entity_table[x].reload_image()
-
-images_load()        
+        
+images_load() 
 
 
 #Base Classes
 class Tile():
     def __init__(self, worldX, worldY):
-        global tile_set
+        global image_set
         self.type = "Generic"
         self.worldX = worldX
         self.worldY = worldY
@@ -96,7 +82,7 @@ class Tile():
         self.environment = ""
         self.is_passable = True
         self.orig_image = "tile_grass2.png"
-        self.image = tile_set[self.orig_image]
+        self.image = image_set[self.orig_image]
         self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
         self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
         self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
@@ -116,7 +102,7 @@ class Tile():
             pass
 
     def reload_image(self):
-        self.image = tile_set[self.orig_image]
+        self.image = image_set[self.orig_image]
         self.image = pygame.transform.rotate(self.image, 90*random.randint(1,4))
 
     def interact(self):
@@ -133,7 +119,7 @@ class Entity():
         self.occupied_tile = self.accessTile(self.worldX, self.worldY)
         master_entity_table[len(master_entity_table)+1] = self
         self.orig_image = orig_image
-        self.image = ent_sprite_set[orig_image]
+        self.image = image_set[orig_image]
 
     def entSetPos(self, x, y):
         self.worldX = x
@@ -174,7 +160,7 @@ class Entity():
                 pass
 
     def reload_image(self):
-        self.image = ent_sprite_set[self.orig_image]
+        self.image = image_set[self.orig_image]
         print("image reloaded")
         
 class Player(Entity):
@@ -316,17 +302,17 @@ def loadData():
         
         for x in master_tile_table:
             for y in master_tile_table[x]:
-                master_tile_table[x][y].image = tile_set[master_tile_table[x][y].orig_image]
+                master_tile_table[x][y].reload_image()
 
         for x in unloaded_tile_table:
             for y in unloaded_tile_table[x]:
-                unloaded_tile_table[x][y].image = tile_set[unloaded_tile_table[x][y].orig_image]
+                unloaded_tile_table[x][y].reload_image()
 
         for x in master_entity_table:
-            master_entity_table[x].image = ent_sprite_set[master_entity_table[x].orig_image]
+            master_entity_table[x].reload_image()
 
     player.entMove(0,0)
-    dyn_unload
+    dyn_unload()
     print("Data loaded!")
 
 def saveData():
@@ -467,7 +453,6 @@ def set_map_size_to_game(x):
 
 def set_tile_size(passed_selector):
     global selector
-    global tile_set
     global tile_size
     selector = passed_selector
     tile_size = tile_sizes[passed_selector]
@@ -518,7 +503,7 @@ def start_menu():
     render_space[4] = quit_button
     title = Text(screen_origin_x, screen_origin_y/2-100, "Cool Test Game", 5)
     text_space[1] = title
-    bg = Image("resources/title_bg.png", window_x, window_y, screen_origin_x, screen_origin_y)
+    bg = Image("resources/extra/title_bg.png", window_x, window_y, screen_origin_x, screen_origin_y)
     text_space[2] = bg
 
 def pause_menu():

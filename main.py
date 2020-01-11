@@ -81,6 +81,7 @@ class Tile():
         self.ents = list()
         self.environment = ""
         self.is_passable = True
+        self.is_occupied = False
         self.orig_image = "tile_grass2.png"
         self.image = image_set[self.orig_image]
         self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
@@ -111,15 +112,20 @@ class Tile():
             
 class Entity():
     def __init__(self, worldX, worldY, orig_image):
+        self.name = "Entity"
         self.worldX = worldX
         self.worldY = worldY
         self.inventory = list()
         self.hp = 100
+        self.ID = random.randint(10000, 25000)
         self.accessTile(self.worldX, self.worldY).ents.append(self)
         self.occupied_tile = self.accessTile(self.worldX, self.worldY)
-        master_entity_table[len(master_entity_table)+1] = self
+        self.occupied_tile.is_occupied = True
+        master_entity_table[self.ID] = self
         self.orig_image = orig_image
         self.image = image_set[orig_image]
+        self.generate_items()
+        self.equipped_weapon = self.inventory[0]
 
     def entSetPos(self, x, y):
         self.worldX = x
@@ -128,15 +134,19 @@ class Entity():
     def entMove(self, xChange, yChange):
         new_x = self.worldX + xChange
         new_y = self.worldY + yChange
-        coords = (self.accessTile(new_x, new_y).worldX, self.accessTile(new_x, new_y).worldY)
-        if self.accessTile(new_x, new_y).is_passable == True:
+        if self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == False:
             self.occupied_tile.ents.remove(self)
+            self.occupied_tile.is_occupied = False
             self.worldX = new_x
             self.worldY = new_y
             self.occupied_tile = self.accessTile(self.worldX, self.worldY)
-            self.accessTile(self.worldX, self.worldY).ents.append(self)
-            print(self.accessTile(self.worldX, self.worldY).ents)
+            self.occupied_tile(self.worldX, self.worldY).ents.append(self)
+            self.occupied_tile(self.worldX, self.worldY).is_occupied = True
             print(self.occupied_tile)
+
+        elif self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == True:
+            attack(self.accessTile(new_x, new_y))
+
         else:
             print("Tile is inaccessible.")
             pass
@@ -161,11 +171,33 @@ class Entity():
 
     def reload_image(self):
         self.image = image_set[self.orig_image]
-        print("image reloaded")
+
+    def attack(self, targetted_tile):
+        target = targetted_tile.ents[0]
+        damage = self.equipped_weapon.damage+random.randint(0, self.equipped_weapon.damage_range)
+        target.take_damage(damage)
+        print("%s attacked %s for %s damage!" %(self.name, target.name, damage))
+
+    def take_damage(self, damage):
+        self.hp -= damage
+        if self.hp <= 0:
+            self.delete()
+
+    def delete(self):
+        try:
+            self.occupied_tile.inventory.append(self.inventory)
+            self.occupied_tile.is_occupied = False
+            del master_entity_table[self.ID]
+        except:
+            pass
+
+    def generate_items(self):
+        self.inventory.append(Item("Cool Sword"))
         
 class Player(Entity):
     def __init__(self, worldX, worldY, image_id):
         super().__init__(worldX, worldY, image_id)
+        self.name = "Player"
         self.last_unloaded_pos_x = self.worldX
         self.last_unloaded_pos_y = self.worldY
         self.old_unloaded_pos_x = self.worldX
@@ -174,20 +206,25 @@ class Player(Entity):
     def entMove(self, xChange, yChange):
         new_x = self.worldX + xChange
         new_y = self.worldY + yChange
-        coords = (self.accessTile(new_x, new_y).worldX, self.accessTile(new_x, new_y).worldY)
-        if self.accessTile(new_x, new_y).is_passable == True:
+        if self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == False:
             self.occupied_tile.ents.remove(self)
+            self.occupied_tile.is_occupied = False
             self.worldX = new_x
             self.worldY = new_y
             self.occupied_tile = self.accessTile(self.worldX, self.worldY)
-            self.accessTile(self.worldX, self.worldY).ents.append(self)
-            print(self.accessTile(self.worldX, self.worldY).ents)
+            self.occupied_tile.ents.append(self)
+            self.occupied_tile.is_occupied = True
+            print(self.occupied_tile.inventory)
             global static
             if static == False:
                 global player_x_offset
                 global player_y_offset
                 player_x_offset = -self.worldX
                 player_y_offset = -self.worldY
+
+        elif self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == True:
+            self.attack(self.accessTile(new_x, new_y))
+
         else:
             print("Tile is inaccessible.")
             pass
@@ -208,11 +245,11 @@ class Player(Entity):
         except:
             pass
 
-    
-        
 class Item():
     def __init__(self, item_name):
         self.item_name = item_name
+        self.damage = 1
+        self.damage_range = 5
         self.id = 1
 
 class Button():
@@ -278,7 +315,6 @@ class Tile_rock(Tile):
         
 def tileGen(sizeX, sizeY):
     global master_tile_table
-    global tileID
     sizeX = int(sizeX/2)
     sizeY = int(sizeY/2)
     for x in range(-sizeX, sizeX):
@@ -358,7 +394,6 @@ def unload_tiles():
         for y in master_tile_table:
             try:
                 open_tile = master_tile_table[x][y]
-                dist = math.hypot(open_tile.worldX - player.occupied_tile.worldX, open_tile.worldY - player.occupied_tile.worldY)
                 unloaded_tile_table[x][y] = master_tile_table[x][y]
                 del master_tile_table[x][y]
             except:
@@ -373,7 +408,6 @@ def load_all_tiles():
         for y in unloaded_tile_table:
             try:
                 open_tile = unloaded_tile_table[x][y]
-                dist = math.hypot(open_tile.worldX - player.occupied_tile.worldX, open_tile.worldY - player.occupied_tile.worldY)
                 master_tile_table[x][y] = unloaded_tile_table[x][y]
                 del unloaded_tile_table[x][y]
             except:
@@ -646,6 +680,9 @@ while running:
                 if event.key == pygame.K_o:
                     loadData()
 
+                if event.key == pygame.K_m:
+                    print(master_entity_table)
+
                 if event.key == pygame.K_u:
                     new_item = Item("CoolThing")
                     player.inventory.append(new_item)
@@ -710,8 +747,7 @@ while running:
                     for y in master_tile_table[x]:    
                         try:
                             if master_tile_table[x][y].collision.collidepoint(event.pos):
-                                master_tile_table[x][y] = Tile_rock(x, y)
-                                master_tile_table[x][y].reload_image()
+                                player.attack(master_tile_table[x][y])
                                 
                         except:
                             traceback.print_exc()

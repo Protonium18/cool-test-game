@@ -1,4 +1,4 @@
-import random, pickle, pygame, math, sys, traceback
+import random, pickle, pygame, math, sys, traceback, os
 
 pygame.init()
 window_x = pygame.display.Info().current_w
@@ -24,10 +24,10 @@ render_space = {}
 text_space = {}
 load = 0
 
-map_x_width = 1000
-map_y_width = 1000
+map_x_width = 0
+map_y_width = 0
 static = False
-selector = 2
+selector = 0
 tile_sizes = {}
 tile_sizes[0] = 128
 tile_sizes[1] = 64
@@ -38,63 +38,79 @@ tile_sizes[5] = 4
 tile_sizes[6] = 2
 tile_sizes[7] = 1
 tile_size = tile_sizes[selector]
-tile_set = {}
 game_status = 0
 font_default = pygame.font.SysFont('Arial', 30)
 font_title = pygame.font.SysFont('Arial', 60)
 
+image_set = {}
 
-ent_sprite_set = {}
-def tile_load():
-    for i in range (1, 5):
-        tile_set[i] = pygame.image.load("resources/tiles/tile_grass%s.png" %(i))
-        tile_set[i] = pygame.transform.scale(tile_set[i],(tile_size, tile_size))
-   
-def ent_sprite_load():
-    x=1
-    ent_sprite_set[x] = pygame.image.load("resources/player.png")
-    ent_sprite_set[x] = pygame.transform.scale(ent_sprite_set[x],(tile_size, tile_size))
-    for ent in range(1,len(master_entity_table)+1):
-        master_entity_table[ent].image = ent_sprite_set[x]
+def images_load():
+    global image_set
+    del image_set
+    image_set = {}
+    for folders in os.listdir(".//resources"):
+        if folders == "extra":
+            pass
         
+        else:
+            for images in os.listdir(".//resources/%s" %(folders)):
+                print(folders)
+                image_set[images] = pygame.image.load(".//resources/%s/%s" %(folders, images))
+                image_set[images] = pygame.transform.scale(image_set[images],(tile_size, tile_size))
+            
+            traceback.print_exc()
         
-tile_load()
-ent_sprite_load()
+    for x in master_tile_table:
+        for y in master_tile_table[x]:
+            master_tile_table[x][y].reload_image()
+            
+    for x in master_entity_table:
+        master_entity_table[x].reload_image()
+        
+images_load() 
 
+
+#Base Classes
 class Tile():
     def __init__(self, worldX, worldY):
-        global tile_set
+        global image_set
+        self.type = "Generic"
         self.worldX = worldX
         self.worldY = worldY
         self.inventory = list()
         self.ents = list()
         self.environment = ""
-        self.randomvar = random.randint(1,4)
-        self.check_passable()
-        self.image = tile_set[self.randomvar]
+        self.is_passable = True
+        self.orig_image = "tile_grass2.png"
+        self.image = image_set[self.orig_image]
         self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
         self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
         self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
 
         
+
     def renderTile(self):
         global screen_origin_x
         global screen_origin_y
         global tile_size
         self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
         self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
-        screen.blit(self.image,(self.screenx, self.screeny))
-        
-    def check_passable(self):
-        if self.randomvar == 4:
-            self.is_passable = False
+        self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
+        try:
+            screen.blit(self.image,(self.screenx, self.screeny))
+        except:
+            pass
 
-        else:
-            self.is_passable = True
+    def reload_image(self):
+        self.image = image_set[self.orig_image]
+        self.image = pygame.transform.rotate(self.image, 90*random.randint(1,4))
+
+    def interact(self):
+        return()
             
             
 class Entity():
-    def __init__(self, worldX, worldY, image_id):
+    def __init__(self, worldX, worldY, orig_image):
         self.worldX = worldX
         self.worldY = worldY
         self.inventory = list()
@@ -102,7 +118,8 @@ class Entity():
         self.accessTile(self.worldX, self.worldY).ents.append(self)
         self.occupied_tile = self.accessTile(self.worldX, self.worldY)
         master_entity_table[len(master_entity_table)+1] = self
-        self.image = ent_sprite_set[image_id]
+        self.orig_image = orig_image
+        self.image = image_set[orig_image]
 
     def entSetPos(self, x, y):
         self.worldX = x
@@ -137,7 +154,14 @@ class Entity():
         if self.screenx > window_x+256 or self.screeny > window_y+256:
             pass
         else:
-            screen.blit(self.image,(self.screenx, self.screeny))
+            try:
+                screen.blit(self.image,(self.screenx, self.screeny))
+            except:
+                pass
+
+    def reload_image(self):
+        self.image = image_set[self.orig_image]
+        print("image reloaded")
         
 class Player(Entity):
     def __init__(self, worldX, worldY, image_id):
@@ -179,12 +203,16 @@ class Player(Entity):
         else:
             self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
             self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
-        screen.blit(self.image,(self.screenx, self.screeny))
+        try:
+            screen.blit(self.image,(self.screenx, self.screeny))
+        except:
+            pass
 
     
         
 class Item():
-    def __init__(self):
+    def __init__(self, item_name):
+        self.item_name = item_name
         self.id = 1
 
 class Button():
@@ -238,8 +266,15 @@ class Image():
     def render(self):
         screen.blit(self.image, (self.pos_x - self.image.get_width() // 2, self.pos_y - self.image.get_height() // 2))
 
-
-
+#Tile Subclasses
+class Tile_rock(Tile):
+    def __init__(self, worldX, worldY):
+        super().__init__(worldX, worldY)
+        self.type = "Rock"
+        self.is_passable = False
+        self.orig_image = "tile3.png"
+        
+        
         
 def tileGen(sizeX, sizeY):
     global master_tile_table
@@ -255,28 +290,53 @@ def tileGen(sizeX, sizeY):
                         
 def loadData():
     global master_tile_table
-    #game_clean()
+    global master_entity_table
+    global unloaded_tile_table
+    global player
+    game_clean()
     with open('map_data.pkl', 'rb') as input:
         master_tile_table = pickle.load(input)
+        master_entity_table = pickle.load(input)
+        unloaded_tile_table = pickle.load(input)
+        player = pickle.load(input)
+        
         for x in master_tile_table:
             for y in master_tile_table[x]:
-                master_tile_table[x][y].image = tile_set[master_tile_table[x][y].randomvar]
+                master_tile_table[x][y].reload_image()
 
+        for x in unloaded_tile_table:
+            for y in unloaded_tile_table[x]:
+                unloaded_tile_table[x][y].reload_image()
+
+        for x in master_entity_table:
+            master_entity_table[x].reload_image()
+
+    player.entMove(0,0)
+    dyn_unload()
     print("Data loaded!")
 
 def saveData():
     global master_tile_table
+    global unloaded_tile_table
     load_all_tiles()
-    
+
     for x in master_tile_table:
         for y in master_tile_table[x]:
             master_tile_table[x][y].image = ""
-            master_tile_table[x][y].collision = ""
 
-    print(master_tile_table[1][2].image)
+    for x in unloaded_tile_table:
+        for y in unloaded_tile_table[x]:
+            unloaded_tile_table[x][y].image = ""
+
+    for x in master_entity_table:
+        master_entity_table[x].image = ""
+
             
     with open('map_data.pkl', 'wb') as output:
         pickle.dump(master_tile_table, output, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(master_entity_table, output, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(unloaded_tile_table, output, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(player, output, pickle.HIGHEST_PROTOCOL)
         
     print("Data saved!")
 
@@ -302,6 +362,7 @@ def unload_tiles():
                 unloaded_tile_table[x][y] = master_tile_table[x][y]
                 del master_tile_table[x][y]
             except:
+                traceback.print_exc()
                 pass
     player.last_unloaded_pos_x = player.occupied_tile.worldX
     player.last_unloaded_pos_y = player.occupied_tile.worldY
@@ -343,6 +404,7 @@ def load_tiles():
             try:
                 master_tile_table[x][y] = unloaded_tile_table[x][y]
                 del unloaded_tile_table[x][y]
+                master_tile_table[x][y].reload_image()
             except:
                 pass
     player.last_unloaded_pos_x = player.occupied_tile.worldX
@@ -381,6 +443,21 @@ def set_map_size(x):
     global map_y_width
     map_x_width = x
     map_y_width = x
+
+def set_map_size_to_game(x):
+    global map_x_width
+    global map_y_width
+    map_x_width = x
+    map_y_width = x
+    load_game()
+
+def set_tile_size(passed_selector):
+    global selector
+    global tile_size
+    selector = passed_selector
+    tile_size = tile_sizes[passed_selector]
+
+    images_load()
     
 
 def button_render():
@@ -406,10 +483,17 @@ def render_clear():
 
 def start_menu():
     global game_status
+    if map_x_width == 0:
+        func = "map_options_menu"
+        arg = True
+    else:
+        func = "load_game"
+        arg = ""
+        
     game_clean()
     game_status = 0
     render_clear()
-    start_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Start", "load_game", "")
+    start_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Start", func, arg)
     load_button =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Load", "", "")
     options_button =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Options", "options_menu", "" )
     quit_button =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Quit", "quit_game", "" )
@@ -419,7 +503,7 @@ def start_menu():
     render_space[4] = quit_button
     title = Text(screen_origin_x, screen_origin_y/2-100, "Cool Test Game", 5)
     text_space[1] = title
-    bg = Image("resources/title_bg.png", window_x, window_y, screen_origin_x, screen_origin_y)
+    bg = Image("resources/extra/title_bg.png", window_x, window_y, screen_origin_x, screen_origin_y)
     text_space[2] = bg
 
 def pause_menu():
@@ -435,35 +519,55 @@ def pause_menu():
 
 def options_menu():
     render_clear()
-    map_options_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Map Size", "map_options_menu", "")
+    map_options_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Map Size", "map_options_menu", "False")
+    tile_size_button = Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Tile Size", "tile_size_menu", "")
     render_space[1] = map_options_button
+    render_space[2] = tile_size_button
     title = Text(screen_origin_x, screen_origin_y/2-100, "Options", 5)
     back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "start_menu", "")
     text_space[1] = title
-    render_space[2] = back
+    render_space[3] = back
     pygame.mouse.set_visible(True)
 
-def map_options_menu():
+def map_options_menu(start_game):
     render_clear()
-    func = "set_map_size"
+    if start_game == True:
+        func = "set_map_size_to_game"
+        func2 = "start_menu"
+    else:
+        func = "set_map_size"
+        func2 = "options_menu"
     
     title = Text(screen_origin_x, screen_origin_y/2-100, "Map Size", 5)
-    map_size_50 = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "50x50", "set_map_size", 50)
-    map_size_100 =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "100x100", "set_map_size", 100)
-    map_size_200 =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "200x200", "set_map_size", 200)
-    back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "options_menu", "")
+    map_size_50 = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "50x50", func, 50)
+    map_size_100 =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "100x100", func, 100)
+    map_size_200 =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "200x200", func, 200)
+    back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", func2, "")
     render_space[1] = map_size_50
     render_space[2] = map_size_100
     render_space[3] = map_size_200
     render_space[4] = back
     text_space[1] = title
-    pygame.mouse.set_visible(True)    
+    pygame.mouse.set_visible(True)
 
+def tile_size_menu():
+    render_clear()
+    title = Text(screen_origin_x, screen_origin_y/2-100, "Tile Size", 5)
+    tile_size_128 = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "128x128", "set_tile_size", 0)
+    tile_size_64 =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "64x64", "set_tile_size", 1)
+    tile_size_32 =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "32x32", "set_tile_size", 2)
+    back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "options_menu", "")
+    render_space[1] = tile_size_128
+    render_space[2] = tile_size_64
+    render_space[3] = tile_size_32
+    render_space[4] = back
+    text_space[1] = title
+    pygame.mouse.set_visible(True)
+    
 def resume_game():
     global game_status
     render_clear()
     game_status = 1
-    #pygame.mouse.set_visible(False)
 
 def game_start():
     global start_game
@@ -471,9 +575,9 @@ def game_start():
     tileGen(map_x_width, map_y_width)
     global player
     global enemy
-    #pygame.mouse.set_visible(False)
-    player = Player(0,0,1)
-    enemy = Entity(4,0,1)
+    images_load()
+    player = Player(0,0,"player.png")
+    enemy = Entity(4,0,"player.png")
     render_screen()
     unload_tiles()
     load_tiles()
@@ -542,6 +646,11 @@ while running:
                 if event.key == pygame.K_o:
                     loadData()
 
+                if event.key == pygame.K_u:
+                    new_item = Item("CoolThing")
+                    player.inventory.append(new_item)
+                    print(player.inventory)
+
                 if event.key == pygame.K_p:
                     print(player.occupied_tile.image)
 
@@ -550,9 +659,7 @@ while running:
                         selector += 1
                         tile_size = tile_sizes[selector]
                         print(tile_size)
-                        tile_load()
-                        ent_sprite_load()
-                        reload_tile_image()
+                        images_load()
                         load_tiles()
                         render_screen()
                     except:
@@ -564,13 +671,12 @@ while running:
                         selector -= 1
                         tile_size = tile_sizes[selector]
                         print(tile_size)
-                        tile_load()
-                        ent_sprite_load()
-                        reload_tile_image()
+                        images_load()
                         load_tiles()
                         render_screen()
                     except:
                         pass
+                        traceback.print_exc()
                         print("Key error!")
                     
 
@@ -604,7 +710,8 @@ while running:
                     for y in master_tile_table[x]:    
                         try:
                             if master_tile_table[x][y].collision.collidepoint(event.pos):
-                                print(master_tile_table[x][y].randomvar)
+                                master_tile_table[x][y] = Tile_rock(x, y)
+                                master_tile_table[x][y].reload_image()
                                 
                         except:
                             traceback.print_exc()

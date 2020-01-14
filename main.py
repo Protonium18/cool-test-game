@@ -5,6 +5,9 @@ window_x = pygame.display.Info().current_w
 window_y = pygame.display.Info().current_h
 screen_origin_x = int(window_x/2)
 screen_origin_y = int(window_y/2)
+screen_h_multiplier = round(window_x/1080, 2)
+screen_w_multiplier = round(window_y/1920, 2)
+
 
 screen = pygame.display.set_mode((0,0), pygame.FULLSCREEN)
 pygame.display.set_icon(pygame.image.load("resources/tiles/tile1.png"))
@@ -54,7 +57,6 @@ def images_load():
         
         else:
             for images in os.listdir(".//resources/%s" %(folders)):
-                print(folders)
                 image_set[images] = pygame.image.load(".//resources/%s/%s" %(folders, images))
                 image_set[images] = pygame.transform.scale(image_set[images],(tile_size, tile_size))
             
@@ -88,8 +90,6 @@ class Tile():
         self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
         self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
 
-        
-
     def renderTile(self):
         global screen_origin_x
         global screen_origin_y
@@ -117,6 +117,9 @@ class Entity():
         self.worldY = worldY
         self.inventory = list()
         self.hp = 100
+        self.inventory_size = 9
+        self.inventory_dim = int(math.sqrt(self.inventory_size))
+        self.loot_table = "entity_generic.txt"
         self.ID = random.randint(10000, 25000)
         self.accessTile(self.worldX, self.worldY).ents.append(self)
         self.occupied_tile = self.accessTile(self.worldX, self.worldY)
@@ -124,7 +127,7 @@ class Entity():
         master_entity_table[self.ID] = self
         self.orig_image = orig_image
         self.image = image_set[orig_image]
-        self.generate_items()
+        self.loot_table_gen(1)
         self.equipped_weapon = self.inventory[0]
 
     def entSetPos(self, x, y):
@@ -145,7 +148,7 @@ class Entity():
             print(self.occupied_tile)
 
         elif self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == True:
-            attack(self.accessTile(new_x, new_y))
+            self.attack(self.accessTile(new_x, new_y))
 
         else:
             print("Tile is inaccessible.")
@@ -176,7 +179,7 @@ class Entity():
         target = targetted_tile.ents[0]
         damage = self.equipped_weapon.damage+random.randint(0, self.equipped_weapon.damage_range)
         target.take_damage(damage)
-        print("%s attacked %s for %s damage!" %(self.name, target.name, damage))
+        print("{} attacked {} for {} damage using {}!".format(self.name, target.name, damage, self.equipped_weapon.item_name))
 
     def take_damage(self, damage):
         self.hp -= damage
@@ -187,12 +190,27 @@ class Entity():
         try:
             self.occupied_tile.inventory.append(self.inventory)
             self.occupied_tile.is_occupied = False
+            print("{} died!".format(self.name))
             del master_entity_table[self.ID]
         except:
             pass
+        
+    def pick_up_item(self, list_pos):
+        if len(self.inventory) > self.inventory_size:
+            pass
+        else:
+            self.inventory.append(self.occupied_tile.inventory[list_pos])
+            self.occupied_tile.inventory.remove(self.occupied_tile.inventory[list_pos])
+    
+    def loot_table_gen(self, passes):
+        if os.path.exists(".\\loot_tables/{}".format(self.loot_table)):
+            with open(".\\loot_tables/{}".format(self.loot_table)) as file:
+                loot_list = file.read().splitlines()
+                for i in range(passes):
+                    self.inventory.append(Item.from_txt(loot_list[random.randint(0, len(loot_list)-1)]))
 
-    def generate_items(self):
-        self.inventory.append(Item("Cool Sword"))
+        else:
+            print("Error! Invalid loot table.")
         
 class Player(Entity):
     def __init__(self, worldX, worldY, image_id):
@@ -246,11 +264,30 @@ class Player(Entity):
             pass
 
 class Item():
-    def __init__(self, item_name):
+    def __init__(self, item_name, damage=1, damage_range=5, category="Generic", weight=1):
         self.item_name = item_name
-        self.damage = 1
-        self.damage_range = 5
+        self.damage = damage
+        self.damage_range = damage_range
         self.id = 1
+        self.category = category
+        self.weight = weight
+
+    @classmethod
+    def from_txt(cls, name):
+        if os.path.exists("items/{}.txt".format(name)) == True:
+            with open("items/{}.txt".format(name)) as file:
+                lines = file.read().splitlines()
+                item_name = lines[0]
+                damage = int(lines[1])
+                damage_range = int(lines[2])
+                category = lines[3]
+                weight = int(lines[4])
+                return cls(item_name, damage, damage_range, category, weight)
+        else:
+            print("Error! Invalid item name.")
+                        
+            
+            
 
 class Button():
     def __init__(self, pos_x, pos_y, size_x, size_y, R,G,B, text, func_name, args):
@@ -393,7 +430,6 @@ def unload_tiles():
     for x in master_tile_table:
         for y in master_tile_table:
             try:
-                open_tile = master_tile_table[x][y]
                 unloaded_tile_table[x][y] = master_tile_table[x][y]
                 del master_tile_table[x][y]
             except:
@@ -407,7 +443,6 @@ def load_all_tiles():
     for x in unloaded_tile_table:
         for y in unloaded_tile_table:
             try:
-                open_tile = unloaded_tile_table[x][y]
                 master_tile_table[x][y] = unloaded_tile_table[x][y]
                 del unloaded_tile_table[x][y]
             except:
@@ -597,6 +632,11 @@ def tile_size_menu():
     render_space[4] = back
     text_space[1] = title
     pygame.mouse.set_visible(True)
+
+def inventory_open(target):
+    size_x = target.inventory_size_x
+    size_y = target.inventory_size_y
+    #maybe instead use for x then for y
     
 def resume_game():
     global game_status
@@ -680,13 +720,22 @@ while running:
                 if event.key == pygame.K_o:
                     loadData()
 
+                if event.key == pygame.K_i:
+                    open_inventory(player)
+                    
+                if event.key == pygame.K_g:
+                    #player.pick_up_item(0)
+                    #print(player.inventory)
+                    player.inventory.append(Item.from_txt("test_item"))
+                    print(len(player.inventory))
+                    for x in player.inventory:
+                        print(x.item_name)
+
                 if event.key == pygame.K_m:
                     print(master_entity_table)
 
                 if event.key == pygame.K_u:
-                    new_item = Item("CoolThing")
-                    player.inventory.append(new_item)
-                    print(player.inventory)
+                    pass
 
                 if event.key == pygame.K_p:
                     print(player.occupied_tile.image)
@@ -752,6 +801,11 @@ while running:
                         except:
                             traceback.print_exc()
                             pass
+
+        if game_status == 3:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                pass
+                
                     
         if game_status == 0 or 2:
             if event.type == pygame.MOUSEBUTTONDOWN:

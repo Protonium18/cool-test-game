@@ -23,7 +23,9 @@ camera_offset_changey = 0
 master_entity_table = {}
 master_tile_table = {}
 unloaded_tile_table = {}
+render_space_bg = {}
 render_space = {}
+render_space_1 = {}
 text_space = {}
 load = 0
 inv_open = False
@@ -129,7 +131,7 @@ class Entity():
         master_entity_table[self.ID] = self
         self.orig_image = orig_image
         self.image = image_set[orig_image]
-        self.loot_table_gen(1)
+        self.loot_table_gen(4)
         self.equipped_weapon = self.inventory[0]
 
     def entSetPos(self, x, y):
@@ -211,7 +213,19 @@ class Entity():
         else:
             self.inventory.append(self.occupied_tile.inventory[list_pos])
             self.occupied_tile.inventory.remove(self.occupied_tile.inventory[list_pos])
-    
+
+    def take_item(self, target_ent, item_slot):
+        if len(self.inventory) > self.inventory_size:
+            pass
+        else:
+            print("ee")
+            self.inventory.append(target_ent.inventory[item_slot])
+            target_ent.inventory.remove(target_ent.inventory[item_slot])
+
+    def drop_item(self, target_ent, item_slot):
+        self.occupied_tile.inventory.append(target_ent.inventory[item_slot])
+        target_ent.inventory.remove(target_ent.inventory[item_slot])
+            
     def loot_table_gen(self, passes):
         if os.path.exists(".\\loot_tables/{}".format(self.loot_table)):
             with open(".\\loot_tables/{}".format(self.loot_table)) as file:
@@ -277,14 +291,14 @@ class Player(Entity):
             pass
 
 class Item():
-    def __init__(self, item_name, damage=1, damage_range=5, category="Generic", weight=1):
+    def __init__(self, item_name, damage=1, damage_range=5, category="Generic", weight=1, icon="resources/tiles/tile1.png"):
         self.item_name = item_name
         self.damage = damage
         self.damage_range = damage_range
         self.id = 1
         self.category = category
         self.weight = weight
-        self.icon = "resources/tiles/tile1.png"
+        self.icon = icon
 
     @classmethod
     def from_txt(cls, name):
@@ -296,7 +310,8 @@ class Item():
                 damage_range = int(lines[2])
                 category = lines[3]
                 weight = int(lines[4])
-                return cls(item_name, damage, damage_range, category, weight)
+                icon = lines[5]
+                return cls(item_name, damage, damage_range, category, weight, icon)
         else:
             print("Error! Invalid item name.")
             
@@ -351,10 +366,6 @@ class Image():
 
     def render(self):
         screen.blit(self.image, (self.pos_x - self.image.get_width() // 2, self.pos_y - self.image.get_height() // 2))
-
-class Small_Image(Image):
-    def render(self):
-        screen.blit(self.image, (self.pos_x, self.pos_y))
 
 
 #Tile Subclasses
@@ -663,17 +674,42 @@ def open_inventory(target):
     for column in range(0, dim):
         for line in range(0, dim):
             v += 1
-            render_space[v] = Button(screen_origin_x+(68*line), screen_origin_y+(68*column), 64, 64, 50 ,50, 50, "", "inventory_click", (v, target))
+            render_space[v] = Button(screen_origin_x+(68*line), screen_origin_y+(68*column), 64, 64, 50 ,50, 50, "", "inventory_actions", (v, target))
 
     for item in target.inventory:
-        print(target.inventory)
+        print(target)
         x += 1
         pos_x = render_space[x].pos_x
         pos_y = render_space[x].pos_y
         text_space[x] = Image(item.icon, 58, 58, pos_x, pos_y)
 
-def inventory_click(data):
-    print(data[1].inventory[data[0]-1].item_name)
+def inventory_actions(data):
+    if text_space[data[0]]:
+        if isinstance(data[1], Player) != True:
+            render_space[-1] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+10, 70, 30, 255, 0, 0, "Take", "inventory_take", data)
+            
+        if isinstance(data[1], Entity):
+            render_space[-2] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+45, 70, 30, 255, 0, 0, "Drop", "inventory_drop", data)
+    else:
+        pass
+
+def inventory_take(data):
+    try:
+        text_space.pop(data[0])
+        render_space.pop(-1)
+        player.take_item(data[1], data[0]-1)
+    except:
+        traceback.print_exc()
+        pass
+
+def inventory_drop(data):
+    try:
+        text_space.pop(data[0])
+        render_space.pop(-2)
+        player.drop_item(data[1], data[0]-1)
+    except:
+        traceback.print_exc()
+        pass
 
 def resume_game():
     global game_status
@@ -838,8 +874,7 @@ while running:
                     for y in master_tile_table[x]:    
                         try:
                             if master_tile_table[x][y].collision.collidepoint(event.pos):
-                                player.attack(master_tile_table[x][y])
-                                
+                                pass
                         except:
                             traceback.print_exc()
                             pass

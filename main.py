@@ -26,6 +26,7 @@ unloaded_tile_table = {}
 render_space = {}
 text_space = {}
 load = 0
+inv_open = False
 
 map_x_width = 0
 map_y_width = 0
@@ -60,7 +61,6 @@ def images_load():
                 image_set[images] = pygame.image.load(".//resources/%s/%s" %(folders, images))
                 image_set[images] = pygame.transform.scale(image_set[images],(tile_size, tile_size))
             
-            traceback.print_exc()
         
     for x in master_tile_table:
         for y in master_tile_table[x]:
@@ -80,11 +80,13 @@ class Tile():
         self.worldX = worldX
         self.worldY = worldY
         self.inventory = list()
+        self.inventory_size = 25
+        self.inventory_dim = int(math.sqrt(self.inventory_size))
         self.ents = list()
         self.environment = ""
         self.is_passable = True
         self.is_occupied = False
-        self.orig_image = "tile_grass2.png"
+        self.orig_image = "tile_grass1.png"
         self.image = image_set[self.orig_image]
         self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
         self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
@@ -137,26 +139,34 @@ class Entity():
     def entMove(self, xChange, yChange):
         new_x = self.worldX + xChange
         new_y = self.worldY + yChange
-        if self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == False:
-            self.occupied_tile.ents.remove(self)
-            self.occupied_tile.is_occupied = False
-            self.worldX = new_x
-            self.worldY = new_y
-            self.occupied_tile = self.accessTile(self.worldX, self.worldY)
-            self.occupied_tile(self.worldX, self.worldY).ents.append(self)
-            self.occupied_tile(self.worldX, self.worldY).is_occupied = True
-            print(self.occupied_tile)
+        try:
+            if self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == False:
+                self.occupied_tile.ents.remove(self)
+                self.occupied_tile.is_occupied = False
+                self.worldX = new_x
+                self.worldY = new_y
+                self.occupied_tile = self.accessTile(self.worldX, self.worldY)
+                self.occupied_tile(self.worldX, self.worldY).ents.append(self)
+                self.occupied_tile(self.worldX, self.worldY).is_occupied = True
+                print(self.occupied_tile)
 
-        elif self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == True:
-            self.attack(self.accessTile(new_x, new_y))
+            elif self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == True:
+                self.attack(self.accessTile(new_x, new_y))
 
-        else:
-            print("Tile is inaccessible.")
+            else:
+                print("Tile is inaccessible.")
+                pass
+        except:
+            print("Tile is unable to be accessed.")
             pass
         
     def accessTile(self, x, y):
         global master_tile_table
-        return(master_tile_table[x][y])
+        try:
+            return(master_tile_table[x][y])
+        except:
+            print("Tile data is unable to be accessed.")
+            pass
         
     def renderEnt(self):
         global screen_origin_x
@@ -188,7 +198,7 @@ class Entity():
 
     def delete(self):
         try:
-            self.occupied_tile.inventory.append(self.inventory)
+            self.occupied_tile.inventory += self.inventory
             self.occupied_tile.is_occupied = False
             print("{} died!".format(self.name))
             del master_entity_table[self.ID]
@@ -224,27 +234,30 @@ class Player(Entity):
     def entMove(self, xChange, yChange):
         new_x = self.worldX + xChange
         new_y = self.worldY + yChange
-        if self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == False:
-            self.occupied_tile.ents.remove(self)
-            self.occupied_tile.is_occupied = False
-            self.worldX = new_x
-            self.worldY = new_y
-            self.occupied_tile = self.accessTile(self.worldX, self.worldY)
-            self.occupied_tile.ents.append(self)
-            self.occupied_tile.is_occupied = True
-            print(self.occupied_tile.inventory)
-            global static
-            if static == False:
-                global player_x_offset
-                global player_y_offset
-                player_x_offset = -self.worldX
-                player_y_offset = -self.worldY
+        try:
+            if self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == False:
+                self.occupied_tile.ents.remove(self)
+                self.occupied_tile.is_occupied = False
+                self.worldX = new_x
+                self.worldY = new_y
+                self.occupied_tile = self.accessTile(self.worldX, self.worldY)
+                self.occupied_tile.ents.append(self)
+                self.occupied_tile.is_occupied = True
+                print(self.occupied_tile.inventory)
+                global static
+                if static == False:
+                    global player_x_offset
+                    global player_y_offset
+                    player_x_offset = -self.worldX
+                    player_y_offset = -self.worldY
 
-        elif self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == True:
-            self.attack(self.accessTile(new_x, new_y))
+            elif self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == True:
+                self.attack(self.accessTile(new_x, new_y))
 
-        else:
-            print("Tile is inaccessible.")
+            else:
+                print("Tile is inaccessible.")
+                pass
+        except:
             pass
     
     def renderEnt(self):
@@ -271,6 +284,7 @@ class Item():
         self.id = 1
         self.category = category
         self.weight = weight
+        self.icon = "resources/tiles/tile1.png"
 
     @classmethod
     def from_txt(cls, name):
@@ -285,8 +299,6 @@ class Item():
                 return cls(item_name, damage, damage_range, category, weight)
         else:
             print("Error! Invalid item name.")
-                        
-            
             
 
 class Button():
@@ -339,6 +351,11 @@ class Image():
 
     def render(self):
         screen.blit(self.image, (self.pos_x - self.image.get_width() // 2, self.pos_y - self.image.get_height() // 2))
+
+class Small_Image(Image):
+    def render(self):
+        screen.blit(self.image, (self.pos_x, self.pos_y))
+
 
 #Tile Subclasses
 class Tile_rock(Tile):
@@ -529,6 +546,13 @@ def set_tile_size(passed_selector):
     images_load()
     
 
+def text_render():
+    try:
+        for text in text_space:
+            text_space[text].render()
+    except:
+        pass
+
 def button_render():
     try:
         for button in render_space:
@@ -536,13 +560,6 @@ def button_render():
             render_space[button].render_text()
     except(RuntimeError):
         return
-    except:
-        pass
-
-def text_render():
-    try:
-        for text in text_space:
-            text_space[text].render()
     except:
         pass
 
@@ -611,10 +628,12 @@ def map_options_menu(start_game):
     map_size_50 = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "50x50", func, 50)
     map_size_100 =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "100x100", func, 100)
     map_size_200 =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "200x200", func, 200)
+    map_size_500 =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "500x500", func, 500)
     back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", func2, "")
     render_space[1] = map_size_50
     render_space[2] = map_size_100
     render_space[3] = map_size_200
+    render_space[5] = map_size_500
     render_space[4] = back
     text_space[1] = title
     pygame.mouse.set_visible(True)
@@ -633,11 +652,29 @@ def tile_size_menu():
     text_space[1] = title
     pygame.mouse.set_visible(True)
 
-def inventory_open(target):
-    size_x = target.inventory_size_x
-    size_y = target.inventory_size_y
-    #maybe instead use for x then for y
+def open_inventory(target):
+    render_clear()
+    dim = target.inventory_dim
+    v = 0
+    x = 0
+    global inv_open
+    inv_open = True
     
+    for column in range(0, dim):
+        for line in range(0, dim):
+            v += 1
+            render_space[v] = Button(screen_origin_x+(68*line), screen_origin_y+(68*column), 64, 64, 50 ,50, 50, "", "inventory_click", (v, target))
+
+    for item in target.inventory:
+        print(target.inventory)
+        x += 1
+        pos_x = render_space[x].pos_x
+        pos_y = render_space[x].pos_y
+        text_space[x] = Image(item.icon, 58, 58, pos_x, pos_y)
+
+def inventory_click(data):
+    print(data[1].inventory[data[0]-1].item_name)
+
 def resume_game():
     global game_status
     render_clear()
@@ -679,7 +716,7 @@ def game_clean():
 start_menu()
 running = True
 while running:
-    screen.fill((255,255,255))
+    screen.fill((0,0,0))
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -704,15 +741,15 @@ while running:
 
                 if event.key == pygame.K_RSHIFT:
                     static = False
-                    player.entMove(0,0)
                     camera_offsetx = 0
                     camera_offsety = 0
+                    player.entMove(0,0)
 
                 if event.key == pygame.K_f:
                     unload_tiles()
 
                 if event.key == pygame.K_r:
-                    load_tiles()
+                    load_all_tiles()
 
                 if event.key == pygame.K_l:
                     saveData()
@@ -721,15 +758,20 @@ while running:
                     loadData()
 
                 if event.key == pygame.K_i:
-                    open_inventory(player)
+                    if inv_open == True:
+                        render_clear()
+                        inv_open = False
+
+                    else:
+                        open_inventory(player)
                     
                 if event.key == pygame.K_g:
-                    #player.pick_up_item(0)
-                    #print(player.inventory)
-                    player.inventory.append(Item.from_txt("test_item"))
-                    print(len(player.inventory))
-                    for x in player.inventory:
-                        print(x.item_name)
+                    if inv_open == True:
+                        render_clear()
+                        inv_open = False
+
+                    else:
+                        open_inventory(player.occupied_tile)
 
                 if event.key == pygame.K_m:
                     print(master_entity_table)
@@ -820,16 +862,19 @@ while running:
         
             if event.type == pygame.MOUSEMOTION:
                 for button in list(render_space):
-                    if render_space[button].collision.collidepoint(pygame.mouse.get_pos()):
-                        render_space[button].color = [0, 255, 0]
-                    else:
-                        render_space[button].color =  render_space[button].default_color
+                    try:
+                        if render_space[button].collision.collidepoint(pygame.mouse.get_pos()):
+                            render_space[button].color = [0, 255, 0]
+                        else:
+                            render_space[button].color =  render_space[button].default_color
+                    except:
+                        pass
 
     if game_status != 0:     
         render_screen()
     
-    text_render()
     button_render()
+    text_render()
     camera_offsetx += camera_offset_changex
     camera_offsety += camera_offset_changey
     pygame.display.update()

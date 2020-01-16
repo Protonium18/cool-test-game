@@ -51,6 +51,14 @@ font_2 = pygame.font.SysFont('Calibri', 30)
 font_title = pygame.font.SysFont('Arial', 60)
 
 image_set = {}
+color_set = {}
+
+color_set["ui_grey"] = (50, 50, 50)
+color_set["ui_grey_lit"] = (80, 80, 80)
+color_set["red"] = (255, 0, 0)
+color_set["green"] = (0, 255, 0)
+color_set["blue"] = (0, 0, 255)
+color_set["white"] = (255, 255, 255)
 
 def images_load():
     global image_set
@@ -319,15 +327,16 @@ class Item():
             
 
 class Button():
-    def __init__(self, pos_x, pos_y, size_x, size_y, R,G,B, text, func_name, args):
+    def __init__(self, pos_x, pos_y, size_x, size_y, RGB, text, func_name, args):
         self.pos_x = pos_x
         self.pos_y = pos_y
         self.size_x = size_x
         self.size_y = size_y
         self.collision = pygame.Rect(pos_x, pos_y, size_x, size_y)
         self.collision.center = (pos_x, pos_y)
-        self.color = (R,G,B)
-        self.default_color = (R,G,B)
+        self.color = RGB
+        self.default_color = RGB
+        self.lit_color = RGB
         self.text = text
         self.font = font_default
         self.func_name = func_name
@@ -336,7 +345,7 @@ class Button():
         pygame.draw.rect(screen, self.color, self.collision)
         
     def render_text(self):
-        text_surf = self.font.render(self.text, True, (255, 255, 255))
+        text_surf = self.font.render(self.text, True, color_set["white"])
         screen.blit(text_surf, (self.pos_x - text_surf.get_width() // 2, self.pos_y - text_surf.get_height() // 2))
 
     def clicked(self):
@@ -359,7 +368,7 @@ class Text():
         self.font = font_title
 
     def render(self):
-        text_surf = self.font.render(self.text, False, (0, 0, 0))
+        text_surf = self.font.render(self.text, True, color_set["white"])
         screen.blit(text_surf, (self.pos_x - text_surf.get_width() // 2, self.pos_y - text_surf.get_height() // 2))
 
 class Image():
@@ -610,18 +619,18 @@ def start_menu():
     game_clean()
     game_status = 0
     render_clear()
-    render_space[1] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Start", func, arg)
-    render_space[2] =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Load", "", "")
-    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Options", "options_menu", "" )
-    render_space[4] =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Quit", "quit_game", "" )
+    render_space[1] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, color_set["ui_grey"], "Start", func, arg)
+    render_space[2] =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], "Load", "", "")
+    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], "Options", "options_menu", "" )
+    render_space[4] =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], "Quit", "quit_game", "" )
     text_space[1] = Text(screen_origin_x, screen_origin_y/2-100, "Cool Test Game", 5)
     text_space[2] = Image("resources/extra/title_bg.png", window_x, window_y, screen_origin_x, screen_origin_y)
 
 def pause_menu():
     global game_status
     render_clear()
-    quit_button =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Quit", "start_menu", "" )
-    resume_button =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Resume", "resume_game", "" )
+    quit_button =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], "Quit", "start_menu", "" )
+    resume_button =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], "Resume", "resume_game", "" )
 
     render_space[1] = quit_button
     render_space[2] = resume_button
@@ -630,9 +639,9 @@ def pause_menu():
 
 def options_menu():
     render_clear()
-    render_space[1] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Map Size", "map_options_menu", "False")
-    render_space[2] = Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Tile Size", "tile_size_menu", "")
-    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "start_menu", "")    
+    render_space[1] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], "Map Size", "map_options_menu", "False")
+    render_space[2] = Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], "Tile Size", "tile_size_menu", "")
+    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "Back", "start_menu", "")    
     text_space[1] = Text(screen_origin_x, screen_origin_y/2-100, "Options", 5)
 
     pygame.mouse.set_visible(True)
@@ -647,21 +656,21 @@ def map_options_menu(start_game):
         func2 = "options_menu"
     
     text_space[1] = Text(screen_origin_x, screen_origin_y/2-100, "Map Size", 5)
-    render_space[0] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "10x10", func, 10)
-    render_space[1] = Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "50x50", func, 50)
-    render_space[2] =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "100x100", func, 100)
-    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "200x200", func, 200)
-    render_space[4] =  Button(screen_origin_x, screen_origin_y/2+400, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "500x500", func, 500)
-    render_space[5] =  Button(screen_origin_x, screen_origin_y/2+700, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", func2, "")
+    render_space[0] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "10x10", func, 10)
+    render_space[1] = Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "50x50", func, 50)
+    render_space[2] =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "100x100", func, 100)
+    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "200x200", func, 200)
+    render_space[4] =  Button(screen_origin_x, screen_origin_y/2+400, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "500x500", func, 500)
+    render_space[5] =  Button(screen_origin_x, screen_origin_y/2+700, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "Back", func2, "")
     pygame.mouse.set_visible(True)
 
 def tile_size_menu():
     render_clear()
     text_space[1] = Text(screen_origin_x, screen_origin_y/2-100, "Tile Size", 5)
-    render_space[1] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "128x128", "set_tile_size", 0)
-    render_space[2] =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "64x64", "set_tile_size", 1)
-    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "32x32", "set_tile_size", 2)
-    render_space[4] =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "options_menu", "")
+    render_space[1] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "128x128", "set_tile_size", 0)
+    render_space[2] =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "64x64", "set_tile_size", 1)
+    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "32x32", "set_tile_size", 2)
+    render_space[4] =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], "Back", "options_menu", "")
     
     pygame.mouse.set_visible(True)
 
@@ -676,7 +685,7 @@ def open_inventory(target):
     for column in range(0, dim):
         for line in range(0, dim):
             v += 1
-            render_space[v] = Button(screen_origin_x+(68*line), screen_origin_y+(68*column), 64, 64, 50 ,50, 50, "", "inventory_actions", (v, target))
+            render_space[v] = Button(screen_origin_x+(68*line), screen_origin_y+(68*column), 64, 64, color_set["ui_grey"], "", "inventory_actions", (v, target))
     v-=1
     for item in target.inventory:
         x += 1
@@ -686,16 +695,15 @@ def open_inventory(target):
 
 def inventory_actions(data):
     if text_space[data[0]]:
-        print("ee")
-        render_space_1[-5] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y-25, 70, 30, 255, 0, 0, "{}".format(data[1].inventory[data[0]-1].item_name), "", "")
+        render_space_1[-5] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y-25, 70, 30, color_set["ui_grey"], "{}".format(data[1].inventory[data[0]-1].item_name), "", "")
         if isinstance(data[1], Player) != True:
-            render_space_1[-1] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+10, 70, 30, 255, 0, 0, "Take", "inventory_take", data)
+            render_space_1[-1] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+10, 70, 30, color_set["ui_grey"], "Take", "inventory_take", data)
             
         if isinstance(data[1], Entity):
-            render_space_1[-2] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+45, 70, 30, 255, 0, 0, "Drop", "inventory_drop", data)
+            render_space_1[-2] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+45, 70, 30, color_set["ui_grey"], "Drop", "inventory_drop", data)
 
         if isinstance(data[1], Player):
-            render_space_1[-3] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+80, 70, 30, 255, 0, 0, "Equip", "inventory_equip", data)
+            render_space_1[-3] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+80, 70, 30, color_set["ui_grey"], "Equip", "inventory_equip", data)
     else:
         pass
 
@@ -923,7 +931,7 @@ while running:
                 for button in list(render_space):
                     try:
                         if render_space[button].collision.collidepoint(pygame.mouse.get_pos()):
-                            render_space[button].color = [0, 255, 0]
+                            render_space[button].color = color_set["ui_grey_lit"]
                         else:
                             render_space[button].color =  render_space[button].default_color
                     except:
@@ -932,7 +940,7 @@ while running:
                 for button in list(render_space_1):
                     try:
                         if render_space_1[button].collision.collidepoint(pygame.mouse.get_pos()):
-                            render_space_1[button].color = [0, 255, 0]
+                            render_space_1[button].color = color_set["ui_grey_lit"]
                         else:
                             render_space_1[button].color =  render_space_1[button].default_color
                     except:
@@ -948,5 +956,3 @@ while running:
     camera_offsetx += camera_offset_changex
     camera_offsety += camera_offset_changey
     pygame.display.update()
-
-

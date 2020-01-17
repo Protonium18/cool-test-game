@@ -142,7 +142,8 @@ class Entity():
         self.orig_image = orig_image
         self.image = image_set[orig_image]
         self.loot_table_gen(4)
-        self.equipped_weapon = self.inventory[0]
+        self.equipped_weapon = None
+        self.item_equip(self.inventory[0])
 
     def entSetPos(self, x, y):
         self.worldX = x
@@ -209,8 +210,9 @@ class Entity():
 
     def delete(self):
         try:
+            self.equipped_weapon.is_equipped = False
             self.occupied_tile.inventory += self.inventory
-            self.occupied_tile.is_occupied = False
+            self.occupied_tile.is_occupied = False 
             print("{} died!".format(self.name))
             del master_entity_table[self.ID]
         except:
@@ -232,10 +234,16 @@ class Entity():
 
     def drop_item(self, target_ent, item_slot):
         self.occupied_tile.inventory.append(target_ent.inventory[item_slot])
+        if target_ent.inventory[item_slot].is_equipped == True:
+            target_ent.inventory[item_slot].is_equipped = False
         target_ent.inventory.remove(target_ent.inventory[item_slot])
 
     def item_equip(self, item):
+        if self.equipped_weapon != None:
+            self.equipped_weapon.is_equipped = False
+
         self.equipped_weapon = item
+        self.equipped_weapon.is_equipped = True
             
     def loot_table_gen(self, passes):
         if os.path.exists(".\\loot_tables/{}".format(self.loot_table)):
@@ -309,6 +317,7 @@ class Item():
         self.category = category
         self.weight = weight
         self.icon = icon
+        self.is_equipped = False
 
     @classmethod
     def from_txt(cls, name):
@@ -692,6 +701,13 @@ def open_inventory(target):
         pos_x = render_space[x].pos_x
         pos_y = render_space[x].pos_y
         text_space[x] = Image(item.icon, 58, 58, pos_x, pos_y)
+        if item.is_equipped == True:
+            #pygame.draw.rect(screen, (255,0,0), pygame.Rect(pos_x, pos_y, 10, 10))
+            #Button(pos_x+22, pos_y-22, 10, 10, color_set["red"], "", "", "")
+            text_space[v+x+1] = Image("resources/extra/equipped_icon.png", 16, 16, pos_x+22, pos_y-22)
+            #text_space[v+x+2] = Image("resources/extra/equipped_icon.png", 16, 16, pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])
+            
+            
 
 def inventory_actions(data):
     if text_space[data[0]]:
@@ -730,6 +746,7 @@ def inventory_drop(data):
 def inventory_equip(data):
     player.item_equip(data[1].inventory[data[0]-1])
     render_space_1.pop(-3)
+    open_inventory(data[1])
 
 def resume_game():
     global game_status

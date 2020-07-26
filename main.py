@@ -1,4 +1,4 @@
-import random, pickle, pygame, math, sys, traceback, os
+import random, pickle, pygame, math, sys, traceback, os, time, game_classes
 
 pygame.init()
 window_x = pygame.display.Info().current_w
@@ -19,6 +19,8 @@ camera_offsetx = 0
 camera_offsety = 0
 camera_offset_changex = 0
 camera_offset_changey = 0
+frame_count = 0
+time_average = 0
 
 master_entity_table = {}
 master_tile_table = {}
@@ -29,12 +31,14 @@ render_space_1 = {}
 text_space = {}
 load = 0
 inv_open = False
+turn_count = 0
 
 map_x_width = 0
 map_y_width = 0
 static = False
 selector = 0
 tile_sizes = {}
+tile_sizes[-1] = 1024
 tile_sizes[0] = 128
 tile_sizes[1] = 64
 tile_sizes[2] = 32
@@ -45,75 +49,51 @@ tile_sizes[6] = 2
 tile_sizes[7] = 1
 tile_size = tile_sizes[selector]
 game_status = 0
-font_default = pygame.font.SysFont('Arial', 30)
-font_title = pygame.font.SysFont('Arial', 60)
 
 image_set = {}
+
+#Colors
+color_set = {}
+color_set["ui_grey_dark"] = (20, 20, 20)
+color_set["ui_grey"] = (50, 50, 50)
+color_set["ui_grey_lit"] = (80, 80, 80)
+color_set["red"] = (255, 0, 0)
+color_set["green"] = (0, 255, 0)
+color_set["blue"] = (0, 0, 255)
+color_set["white"] = (255, 255, 255)
+
+#Fonts
+font_set = {}
+font_set["ui_font"] = pygame.font.SysFont('Calibri', 30)
+font_set["title_font"] = pygame.font.SysFont('Calibri', 60)
+
+
+def fonts_load():
+    for fonts in pygame.font.get_fonts():
+        font_set[fonts] = pygame.font.SysFont(fonts, 30)
 
 def images_load():
     global image_set
     del image_set
+    
     image_set = {}
     for folders in os.listdir(".//resources"):
         if folders == "extra":
             pass
-        
+
         else:
             for images in os.listdir(".//resources/%s" %(folders)):
                 image_set[images] = pygame.image.load(".//resources/%s/%s" %(folders, images))
                 image_set[images] = pygame.transform.scale(image_set[images],(tile_size, tile_size))
             
-        
-    for x in master_tile_table:
-        for y in master_tile_table[x]:
-            master_tile_table[x][y].reload_image()
             
     for x in master_entity_table:
         master_entity_table[x].reload_image()
         
+        
 images_load() 
 
-
-#Base Classes
-class Tile():
-    def __init__(self, worldX, worldY):
-        global image_set
-        self.type = "Generic"
-        self.worldX = worldX
-        self.worldY = worldY
-        self.inventory = list()
-        self.inventory_size = 25
-        self.inventory_dim = int(math.sqrt(self.inventory_size))
-        self.ents = list()
-        self.environment = ""
-        self.is_passable = True
-        self.is_occupied = False
-        self.orig_image = "tile_grass1.png"
-        self.image = image_set[self.orig_image]
-        self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
-        self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
-        self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
-
-    def renderTile(self):
-        global screen_origin_x
-        global screen_origin_y
-        global tile_size
-        self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
-        self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
-        self.collision = pygame.Rect(self.screenx, self.screeny, tile_size, tile_size)
-        try:
-            screen.blit(self.image,(self.screenx, self.screeny))
-        except:
-            pass
-
-    def reload_image(self):
-        self.image = image_set[self.orig_image]
-        self.image = pygame.transform.rotate(self.image, 90*random.randint(1,4))
-
-    def interact(self):
-        return()
-            
-            
+#Base Classes       
 class Entity():
     def __init__(self, worldX, worldY, orig_image):
         self.name = "Entity"
@@ -132,7 +112,8 @@ class Entity():
         self.orig_image = orig_image
         self.image = image_set[orig_image]
         self.loot_table_gen(4)
-        self.equipped_weapon = self.inventory[0]
+        self.equipped_weapon = None
+        self.item_equip(self.inventory[0])
 
     def entSetPos(self, x, y):
         self.worldX = x
@@ -150,7 +131,6 @@ class Entity():
                 self.occupied_tile = self.accessTile(self.worldX, self.worldY)
                 self.occupied_tile(self.worldX, self.worldY).ents.append(self)
                 self.occupied_tile(self.worldX, self.worldY).is_occupied = True
-                print(self.occupied_tile)
 
             elif self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == True:
                 self.attack(self.accessTile(new_x, new_y))
@@ -200,8 +180,9 @@ class Entity():
 
     def delete(self):
         try:
+            self.equipped_weapon.is_equipped = False
             self.occupied_tile.inventory += self.inventory
-            self.occupied_tile.is_occupied = False
+            self.occupied_tile.is_occupied = False 
             print("{} died!".format(self.name))
             del master_entity_table[self.ID]
         except:
@@ -218,19 +199,27 @@ class Entity():
         if len(self.inventory) > self.inventory_size:
             pass
         else:
-            print("ee")
             self.inventory.append(target_ent.inventory[item_slot])
             target_ent.inventory.remove(target_ent.inventory[item_slot])
 
     def drop_item(self, target_ent, item_slot):
         self.occupied_tile.inventory.append(target_ent.inventory[item_slot])
+        if target_ent.inventory[item_slot].is_equipped == True:
+            target_ent.inventory[item_slot].is_equipped = False
         target_ent.inventory.remove(target_ent.inventory[item_slot])
+
+    def item_equip(self, item):
+        if self.equipped_weapon != None:
+            self.equipped_weapon.is_equipped = False
+
+        self.equipped_weapon = item
+        self.equipped_weapon.is_equipped = True
             
     def loot_table_gen(self, passes):
         if os.path.exists(".\\loot_tables/{}".format(self.loot_table)):
             with open(".\\loot_tables/{}".format(self.loot_table)) as file:
                 loot_list = file.read().splitlines()
-                for i in range(passes):
+                for _ in range(passes):
                     self.inventory.append(Item.from_txt(loot_list[random.randint(0, len(loot_list)-1)]))
 
         else:
@@ -245,11 +234,11 @@ class Player(Entity):
         self.old_unloaded_pos_x = self.worldX
         self.old_unloaded_pos_y = self.worldY
             
-    def entMove(self, xChange, yChange):
+    def entMove(self, xChange, yChange, refresh=False):
         new_x = self.worldX + xChange
         new_y = self.worldY + yChange
         try:
-            if self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == False:
+            if self.accessTile(new_x, new_y).is_passable == True and self.accessTile(new_x, new_y).is_occupied == False or refresh == True:
                 self.occupied_tile.ents.remove(self)
                 self.occupied_tile.is_occupied = False
                 self.worldX = new_x
@@ -257,7 +246,6 @@ class Player(Entity):
                 self.occupied_tile = self.accessTile(self.worldX, self.worldY)
                 self.occupied_tile.ents.append(self)
                 self.occupied_tile.is_occupied = True
-                print(self.occupied_tile.inventory)
                 global static
                 if static == False:
                     global player_x_offset
@@ -299,6 +287,7 @@ class Item():
         self.category = category
         self.weight = weight
         self.icon = icon
+        self.is_equipped = False
 
     @classmethod
     def from_txt(cls, name):
@@ -317,42 +306,48 @@ class Item():
             
 
 class Button():
-    def __init__(self, pos_x, pos_y, size_x, size_y, R,G,B, text, func_name, args):
+    def __init__(self, pos_x, pos_y, size_x, size_y, RGB, RGB_lit, text, func_name, args):
         self.pos_x = pos_x
         self.pos_y = pos_y
         self.size_x = size_x
         self.size_y = size_y
         self.collision = pygame.Rect(pos_x, pos_y, size_x, size_y)
         self.collision.center = (pos_x, pos_y)
-        self.color = [R,G,B]
-        self.default_color = [R,G,B]
+        self.color = RGB
+        self.default_color = RGB
+        self.lit_color = RGB_lit
         self.text = text
-        self.font = font_default
+        self.font = font_set["ui_font"]
         self.func_name = func_name
         self.args = args
-
+    def render(self):
+        pygame.draw.rect(screen, self.color, self.collision)
+        
     def render_text(self):
-        text_surf = self.font.render(self.text, False, (0, 0, 0))
+        text_surf = self.font.render(self.text, True, color_set["white"])
         screen.blit(text_surf, (self.pos_x - text_surf.get_width() // 2, self.pos_y - text_surf.get_height() // 2))
 
     def clicked(self):
         #globals()["%s" %self.func_name]()
-        if self.args == "":
-            getattr(sys.modules[__name__], "%s" %self.func_name)()
+        if self.func_name != "":
+            if self.args == "":
+                getattr(sys.modules[__name__], "%s" %self.func_name)()
+            else:
+                getattr(sys.modules[__name__], "%s" %self.func_name)(self.args)
         else:
-            getattr(sys.modules[__name__], "%s" %self.func_name)(self.args)
+            pass
         
         
 class Text():
-    def __init__(self, pos_x, pos_y, text, size):
+    def __init__(self, pos_x, pos_y, text, size, font=font_set["ui_font"]):
         self.pos_x = pos_x
         self.pos_y = pos_y
         self.text = text
         self.size = size
-        self.font = font_title
+        self.font = font
 
     def render(self):
-        text_surf = self.font.render(self.text, False, (0, 0, 0))
+        text_surf = self.font.render(self.text, True, color_set["white"])
         screen.blit(text_surf, (self.pos_x - text_surf.get_width() // 2, self.pos_y - text_surf.get_height() // 2))
 
 class Image():
@@ -367,17 +362,19 @@ class Image():
     def render(self):
         screen.blit(self.image, (self.pos_x - self.image.get_width() // 2, self.pos_y - self.image.get_height() // 2))
 
+class Rectangle():
+    def __init__(self, pos_x, pos_y, size_x, size_y, color):
+        self.pos_x = pos_x
+        self.pos_y = pos_y
+        self.size_x = size_x
+        self.size_y = size_y
+        self.color = color
+        self.rectangle = pygame.Rect(pos_x-size_x//2, pos_y-size_y//2, size_x, size_y)
 
-#Tile Subclasses
-class Tile_rock(Tile):
-    def __init__(self, worldX, worldY):
-        super().__init__(worldX, worldY)
-        self.type = "Rock"
-        self.is_passable = False
-        self.orig_image = "tile3.png"
-        
-        
-        
+    def render(self):
+        pygame.draw.rect(screen, self.color, self.rectangle)
+
+      
 def tileGen(sizeX, sizeY):
     global master_tile_table
     sizeX = int(sizeX/2)
@@ -386,8 +383,8 @@ def tileGen(sizeX, sizeY):
         master_tile_table[x] = {}
         unloaded_tile_table[x] = {}
         for y in range(-sizeY, sizeY):
-            unloaded_tile_table[x][y] = ""
-            master_tile_table[x][y] = Tile(x, y)
+            unloaded_tile_table[x][y] = None
+            master_tile_table[x][y] = game_classes.Tile(x, y)
                         
 def loadData():
     global master_tile_table
@@ -395,26 +392,25 @@ def loadData():
     global unloaded_tile_table
     global player
     game_clean()
-    with open('map_data.pkl', 'rb') as input:
-        master_tile_table = pickle.load(input)
-        master_entity_table = pickle.load(input)
-        unloaded_tile_table = pickle.load(input)
-        player = pickle.load(input)
+    # with open('map_data.pkl', 'rb') as input:
+    #     master_tile_table = pickle.load(input)
+    #     master_entity_table = pickle.load(input)
+    #     unloaded_tile_table = pickle.load(input)
+    #     player = pickle.load(input)
         
-        for x in master_tile_table:
-            for y in master_tile_table[x]:
-                master_tile_table[x][y].reload_image()
+    #     for x in master_tile_table:
+    #         for y in master_tile_table[x]:
+    #             master_tile_table[x][y].reload_image()
 
-        for x in unloaded_tile_table:
-            for y in unloaded_tile_table[x]:
-                unloaded_tile_table[x][y].reload_image()
+    #     for x in unloaded_tile_table:
+    #         for y in unloaded_tile_table[x]:
+    #             unloaded_tile_table[x][y].reload_image()
 
-        for x in master_entity_table:
-            master_entity_table[x].reload_image()
+    #     for x in master_entity_table:
+    #         master_entity_table[x].reload_image()
 
-    player.entMove(0,0)
-    dyn_unload()
-    print("Data loaded!")
+    # player.entMove(0,0) 
+    # print("Data loaded!")
 
 def saveData():
     global master_tile_table
@@ -442,26 +438,50 @@ def saveData():
     print("Data saved!")
 
 def render_screen():
+    global time_average
+    global frame_count
+    time_start = time.perf_counter()
     for x in master_tile_table:
         for y in master_tile_table:
             try:
                 open_tile = master_tile_table[x][y]
-                open_tile.renderTile()
+                global screen_origin_x
+                global screen_origin_y
+                global tile_size
+                screenx = screen_origin_x+(open_tile.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
+                screeny = screen_origin_y+(open_tile.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
+                open_tile.collision = pygame.Rect(screenx, screeny, tile_size, tile_size)
+                try:
+                    tile_image = image_set[open_tile.orig_image]
+                    #tile_image = pygame.transform.rotate(tile_image, open_tile.image_rotation)  
+                    # image rotation function, causes render time to increase 4x.   
+                    screen.blit(tile_image,(screenx, screeny))
+                except:
+                    pass
             except:
                 pass
+
+    time_end = time.perf_counter()
+    time_average += time_end-time_start
+    frame_count += 1
+    if frame_count == 60:
+        print("Avg Frame Time: {}".format(time_average/60))
+        time_average = 0
+        frame_count = 0
             
     for ent in master_entity_table:
         open_ent = master_entity_table[ent]
         open_ent.renderEnt()
 
 def unload_tiles():
+    global master_tile_table
+    global unloaded_tile_table
     for x in master_tile_table:
         for y in master_tile_table:
             try:
                 unloaded_tile_table[x][y] = master_tile_table[x][y]
                 del master_tile_table[x][y]
             except:
-                traceback.print_exc()
                 pass
     player.last_unloaded_pos_x = player.occupied_tile.worldX
     player.last_unloaded_pos_y = player.occupied_tile.worldY
@@ -471,27 +491,10 @@ def load_all_tiles():
     for x in unloaded_tile_table:
         for y in unloaded_tile_table:
             try:
-                master_tile_table[x][y] = unloaded_tile_table[x][y]
-                del unloaded_tile_table[x][y]
+                master_tile_table[x][y] = unloaded_tile_table[x].pop(y)
             except:
                 pass
     print("Tiles loaded")
-
-def dyn_unload():
-    for x in master_tile_table:
-        for y in master_tile_table:
-            try:
-                open_tile = master_tile_table[x][y]
-                if open_tile.screenx > window_x+1024 or open_tile.screeny > window_y+1024 or open_tile.screenx < -1024 or open_tile.screeny < -1024:
-                    unloaded_tile_table[x][y] = master_tile_table[x][y]
-                    del master_tile_table[x][y]
-            except:
-                pass
-
-                    
-    player.old_unloaded_pos_x = player.occupied_tile.worldX
-    player.old_unloaded_pos_y = player.occupied_tile.worldY
-    print("Dynamic unload")
     
 def load_tiles():
     global tile_size
@@ -499,19 +502,39 @@ def load_tiles():
     for x in range(player.occupied_tile.worldX-searchdist, player.occupied_tile.worldX+searchdist):
         for y in range(player.occupied_tile.worldY-searchdist, player.occupied_tile.worldY+searchdist):
             try:
-                master_tile_table[x][y] = unloaded_tile_table[x][y]
-                del unloaded_tile_table[x][y]
+                master_tile_table[x][y] = unloaded_tile_table[x].pop(y)
                 master_tile_table[x][y].reload_image()
             except:
                 pass
+
     player.last_unloaded_pos_x = player.occupied_tile.worldX
     player.last_unloaded_pos_y = player.occupied_tile.worldY
+    print("Tiles loaded.")
+
+def generate_dyn_tiles():
+    searchdist = 30
+    for x in range(player.occupied_tile.worldX-searchdist, player.occupied_tile.worldX+searchdist):
+        for y in range(player.occupied_tile.worldY-searchdist, player.occupied_tile.worldY+searchdist):
+            try:
+                master_tile_table[x][y]
+                
+            except(KeyError):
+                try:
+                    unloaded_tile_table[x]
+                    master_tile_table[x] 
+                except(KeyError):
+                    master_tile_table[x] = {}
+                    unloaded_tile_table[x] = {}
+                unloaded_tile_table[x][y] = None
+                master_tile_table[x][y] = Tile(x, y)
+
+
     print("Tiles loaded.")
     
 def check_if_load():
     dist = math.hypot(player.last_unloaded_pos_x - player.occupied_tile.worldX, player.last_unloaded_pos_y - player.occupied_tile.worldY)
     dist2 = math.hypot(player.old_unloaded_pos_x - player.occupied_tile.worldX, player.old_unloaded_pos_y - player.occupied_tile.worldY)
-    if tile_size == 4 or tile_size == 2 or tile_size == 1 or tile_size == 8:
+    if tile_size == 4 or tile_size == 2 or tile_size == 1 or tile_size == 8 or tile_size == 1024:
         travelled_dist = 5
     elif tile_size == 16:
         travelled_dist = 5
@@ -524,7 +547,7 @@ def check_if_load():
     if dist > travelled_dist:
         load_tiles()
         if dist2 > travelled_dist*4:
-            dyn_unload()
+            return 0
 
 def load_game():
     global game_status
@@ -553,30 +576,32 @@ def set_tile_size(passed_selector):
     global tile_size
     selector = passed_selector
     tile_size = tile_sizes[passed_selector]
-
     images_load()
     
-
-def text_render():
+def gui_render():
     try:
+        for bg in render_space_bg:
+            render_space_bg[bg].render()
+
+        for button in render_space:
+            render_space[button].render()
+            render_space[button].render_text()
+
         for text in text_space:
             text_space[text].render()
-    except:
-        pass
 
-def button_render():
-    try:
-        for button in render_space:
-            pygame.draw.rect(screen, render_space[button].color, render_space[button].collision)
-            render_space[button].render_text()
-    except(RuntimeError):
-        return
+        for button in render_space_1:
+            render_space_1[button].render()
+            render_space_1[button].render_text()
+            
     except:
         pass
 
 def render_clear():
     render_space.clear()
+    render_space_1.clear()
     text_space.clear()
+    render_space_bg.clear()
 
 def start_menu():
     global game_status
@@ -590,40 +615,29 @@ def start_menu():
     game_clean()
     game_status = 0
     render_clear()
-    start_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Start", func, arg)
-    load_button =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Load", "", "")
-    options_button =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Options", "options_menu", "" )
-    quit_button =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Quit", "quit_game", "" )
-    render_space[1] = start_button
-    render_space[2] = load_button
-    render_space[3] = options_button
-    render_space[4] = quit_button
-    title = Text(screen_origin_x, screen_origin_y/2-100, "Cool Test Game", 5)
-    text_space[1] = title
-    bg = Image("resources/extra/title_bg.png", window_x, window_y, screen_origin_x, screen_origin_y)
-    text_space[2] = bg
+    render_space[1] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, color_set["ui_grey"], color_set["ui_grey_lit"], "Start", func, arg)
+    render_space[2] =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Load", "", "")
+    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Options", "options_menu", "" )
+    render_space[4] =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Quit", "quit_game", "" )
+    text_space[1] = Text(screen_origin_x, screen_origin_y/2-100, "Cool Test Game", 5, font_set["title_font"])
+    render_space_bg[1] = Image("resources/extra/title_bg.png", window_x, window_y, screen_origin_x, screen_origin_y)
 
 def pause_menu():
     global game_status
     render_clear()
-    quit_button =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Quit", "start_menu", "" )
-    resume_button =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Resume", "resume_game", "" )
 
-    render_space[1] = quit_button
-    render_space[2] = resume_button
+    render_space[1] = Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Quit", "start_menu", "" )
+    render_space[2] = Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Resume", "resume_game", "" )
     game_status = 2
     pygame.mouse.set_visible(True)
 
 def options_menu():
     render_clear()
-    map_options_button = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Map Size", "map_options_menu", "False")
-    tile_size_button = Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16, 255, 0, 0, "Tile Size", "tile_size_menu", "")
-    render_space[1] = map_options_button
-    render_space[2] = tile_size_button
-    title = Text(screen_origin_x, screen_origin_y/2-100, "Options", 5)
-    back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "start_menu", "")
-    text_space[1] = title
-    render_space[3] = back
+    render_space[1] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Map Size", "map_options_menu", "False")
+    render_space[2] = Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/2, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Tile Size", "tile_size_menu", "")
+    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Back", "start_menu", "")    
+    text_space[1] = Text(screen_origin_x, screen_origin_y/2-100, "Options", 5, font_set["title_font"])
+
     pygame.mouse.set_visible(True)
 
 def map_options_menu(start_game):
@@ -635,32 +649,23 @@ def map_options_menu(start_game):
         func = "set_map_size"
         func2 = "options_menu"
     
-    title = Text(screen_origin_x, screen_origin_y/2-100, "Map Size", 5)
-    map_size_50 = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "50x50", func, 50)
-    map_size_100 =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "100x100", func, 100)
-    map_size_200 =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "200x200", func, 200)
-    map_size_500 =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "500x500", func, 500)
-    back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", func2, "")
-    render_space[1] = map_size_50
-    render_space[2] = map_size_100
-    render_space[3] = map_size_200
-    render_space[5] = map_size_500
-    render_space[4] = back
-    text_space[1] = title
+    text_space[1] = Text(screen_origin_x, screen_origin_y/2-100, "Map Size", 5, font_set["title_font"])
+    render_space[0] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "10x10", func, 10)
+    render_space[1] = Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "50x50", func, 50)
+    render_space[2] =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "100x100", func, 100)
+    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+300, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "200x200", func, 200)
+    render_space[4] =  Button(screen_origin_x, screen_origin_y/2+400, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "500x500", func, 500)
+    render_space[5] =  Button(screen_origin_x, screen_origin_y/2+700, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Back", func2, "")
     pygame.mouse.set_visible(True)
 
 def tile_size_menu():
     render_clear()
-    title = Text(screen_origin_x, screen_origin_y/2-100, "Tile Size", 5)
-    tile_size_128 = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "128x128", "set_tile_size", 0)
-    tile_size_64 =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "64x64", "set_tile_size", 1)
-    tile_size_32 =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "32x32", "set_tile_size", 2)
-    back =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16, 255, 0, 0, "Back", "options_menu", "")
-    render_space[1] = tile_size_128
-    render_space[2] = tile_size_64
-    render_space[3] = tile_size_32
-    render_space[4] = back
-    text_space[1] = title
+    text_space[1] = Text(screen_origin_x, screen_origin_y/2-100, "Tile Size", 5, font_set["title_font"])
+    render_space[1] = Button(screen_origin_x, screen_origin_y/2, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "128x128", "set_tile_size", 0)
+    render_space[2] =  Button(screen_origin_x, screen_origin_y/2+100, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "64x64", "set_tile_size", 1)
+    render_space[3] =  Button(screen_origin_x, screen_origin_y/2+200, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "32x32", "set_tile_size", 2)
+    render_space[4] =  Button(screen_origin_x, screen_origin_y/2+600, screen_origin_x/4, screen_origin_x/16,color_set["ui_grey"], color_set["ui_grey_lit"], "Back", "options_menu", "")
+    
     pygame.mouse.set_visible(True)
 
 def open_inventory(target):
@@ -674,30 +679,45 @@ def open_inventory(target):
     for column in range(0, dim):
         for line in range(0, dim):
             v += 1
-            render_space[v] = Button(screen_origin_x+(68*line), screen_origin_y+(68*column), 64, 64, 50 ,50, 50, "", "inventory_actions", (v, target))
-
+            render_space[v] = Button(screen_origin_x+(68*line), screen_origin_y+(68*column), 64, 64, color_set["ui_grey"], color_set["ui_grey_lit"], "", "inventory_actions", (v, target))
+    v-=1
     for item in target.inventory:
-        print(target)
         x += 1
         pos_x = render_space[x].pos_x
         pos_y = render_space[x].pos_y
         text_space[x] = Image(item.icon, 58, 58, pos_x, pos_y)
+        if item.is_equipped == True:
+            text_space[v+x+1] = Image("resources/extra/equipped_icon.png", 16, 16, pos_x+22, pos_y-22)
+
+    render_space_bg[1000] = Rectangle(render_space[math.ceil(target.inventory_size/2)].pos_x, render_space[math.ceil(target.inventory_size/2)].pos_y, dim*70, dim*70, color_set["ui_grey_dark"])
+            
+    
 
 def inventory_actions(data):
-    if text_space[data[0]]:
-        if isinstance(data[1], Player) != True:
-            render_space[-1] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+10, 70, 30, 255, 0, 0, "Take", "inventory_take", data)
-            
-        if isinstance(data[1], Entity):
-            render_space[-2] =  Button(render_space[data[0]].pos_x-40, render_space[data[0]].pos_y+45, 70, 30, 255, 0, 0, "Drop", "inventory_drop", data)
-    else:
-        pass
+    try:
+        if text_space[data[0]]:
+            z = -25
+            render_space_1[-5] =  Button(pygame.mouse.get_pos()[0]-50, pygame.mouse.get_pos()[1]+z, 70, 30, color_set["ui_grey"], color_set["ui_grey_lit"], "{}".format(data[1].inventory[data[0]-1].item_name), "", "")
+            if isinstance(data[1], Player) != True:
+                z+=35
+                render_space_1[-1] =  Button(pygame.mouse.get_pos()[0]-50, pygame.mouse.get_pos()[1]+z, 70, 30, color_set["ui_grey"], color_set["ui_grey_lit"], "Take", "inventory_take", data)
+
+            if isinstance(data[1], Entity):
+                z+=35
+                render_space_1[-2] =  Button(pygame.mouse.get_pos()[0]-50, pygame.mouse.get_pos()[1]+z, 70, 30, color_set["ui_grey"], color_set["ui_grey_lit"], "Equip", "inventory_equip", data)
+
+            if isinstance(data[1], Player):
+                z+=35
+                render_space_1[-3] =  Button(pygame.mouse.get_pos()[0]-50, pygame.mouse.get_pos()[1]+z, 70, 30, color_set["ui_grey"], color_set["ui_grey_lit"], "Drop", "inventory_drop", data)
+    except(KeyError):
+        render_space_1.clear()
 
 def inventory_take(data):
     try:
         text_space.pop(data[0])
-        render_space.pop(-1)
+        render_space_1.pop(-1)
         player.take_item(data[1], data[0]-1)
+        open_inventory(data[1])
     except:
         traceback.print_exc()
         pass
@@ -705,11 +725,17 @@ def inventory_take(data):
 def inventory_drop(data):
     try:
         text_space.pop(data[0])
-        render_space.pop(-2)
+        render_space_1.pop(-2)
         player.drop_item(data[1], data[0]-1)
+        open_inventory(data[1])
     except:
         traceback.print_exc()
         pass
+
+def inventory_equip(data):
+    player.item_equip(data[1].inventory[data[0]-1])
+    render_space_1.pop(-3)
+    open_inventory(data[1])
 
 def resume_game():
     global game_status
@@ -717,6 +743,7 @@ def resume_game():
     game_status = 1
 
 def game_start():
+    start_time = time.perf_counter()
     global start_game
     start_game = True
     tileGen(map_x_width, map_y_width)
@@ -728,6 +755,8 @@ def game_start():
     render_screen()
     unload_tiles()
     load_tiles()
+    end_time = time.perf_counter()
+    print(f"Game started in {round(end_time-start_time, 2)} second(s).")
 
 def game_clean():
     global master_entity_table
@@ -748,16 +777,17 @@ def game_clean():
     camera_offsety = 0
     camera_offset_changex = 0
     camera_offset_changey = 0
-
+    
 start_menu()
 running = True
 while running:
     screen.fill((0,0,0))
+    time.sleep(0.016)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
             pygame.quit()
-
+        time_start = time.perf_counter()
         if game_status == 1:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_LEFT:
@@ -779,7 +809,7 @@ while running:
                     static = False
                     camera_offsetx = 0
                     camera_offsety = 0
-                    player.entMove(0,0)
+                    player.entMove(0,0, True)
 
                 if event.key == pygame.K_f:
                     unload_tiles()
@@ -811,12 +841,13 @@ while running:
 
                 if event.key == pygame.K_m:
                     print(master_entity_table)
+                    print(len(master_tile_table))
 
                 if event.key == pygame.K_u:
-                    pass
+                    generate_dyn_tiles()
 
                 if event.key == pygame.K_p:
-                    print(player.occupied_tile.image)
+                    print("e")
 
                 if event.key == pygame.K_x:
                     try:
@@ -847,6 +878,7 @@ while running:
                 if event.key == pygame.K_ESCAPE:
                     pause_menu()
                     
+                turn_count+=1
                 check_if_load()
                     
             if event.type == pygame.KEYDOWN:
@@ -885,7 +917,16 @@ while running:
                 
                     
         if game_status == 0 or 2:
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                
+                for button in list(render_space_1):
+                    try:
+                        if render_space_1[button].collision.collidepoint(event.pos):
+                            render_space_1[button].clicked()
+                    except:
+                        traceback.print_exc()
+                        pass
+                    
                 for button in list(render_space):
                     try:
                         if render_space[button].collision.collidepoint(event.pos):
@@ -899,19 +940,26 @@ while running:
                 for button in list(render_space):
                     try:
                         if render_space[button].collision.collidepoint(pygame.mouse.get_pos()):
-                            render_space[button].color = [0, 255, 0]
+                            render_space[button].color = color_set["ui_grey_lit"]
                         else:
                             render_space[button].color =  render_space[button].default_color
                     except:
                         pass
 
+                for button in list(render_space_1):
+                    try:
+                        if render_space_1[button].collision.collidepoint(pygame.mouse.get_pos()):
+                            render_space_1[button].color = render_space_1[button].lit_color
+                        else:
+                            render_space_1[button].color =  render_space_1[button].default_color
+                    except:
+                        pass
+
+
     if game_status != 0:     
         render_screen()
-    
-    button_render()
-    text_render()
+        
+    gui_render()
     camera_offsetx += camera_offset_changex
     camera_offsety += camera_offset_changey
     pygame.display.update()
-
-

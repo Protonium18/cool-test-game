@@ -86,16 +86,13 @@ def images_load():
                 image_set[images] = pygame.image.load(".//resources/%s/%s" %(folders, images))
                 image_set[images] = pygame.transform.scale(image_set[images],(tile_size, tile_size))
             
-            
-    for x in master_entity_table:
-        master_entity_table[x].reload_image()
         
         
 images_load() 
 
 #Base Classes       
 class Entity():
-    def __init__(self, worldX, worldY, orig_image):
+    def __init__(self, worldX, worldY, image):
         self.name = "Entity"
         self.worldX = worldX
         self.worldY = worldY
@@ -109,8 +106,7 @@ class Entity():
         self.occupied_tile = self.accessTile(self.worldX, self.worldY)
         self.occupied_tile.is_occupied = True
         master_entity_table[self.ID] = self
-        self.orig_image = orig_image
-        self.image = image_set[orig_image]
+        self.image = image
         self.loot_table_gen(4)
         self.equipped_weapon = None
         self.item_equip(self.inventory[0])
@@ -149,23 +145,6 @@ class Entity():
         except:
             print("Tile data is unable to be accessed.")
             pass
-        
-    def renderEnt(self):
-        global screen_origin_x
-        global screen_origin_y
-        global tile_size
-        self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
-        self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
-        if self.screenx > window_x+256 or self.screeny > window_y+256:
-            pass
-        else:
-            try:
-                screen.blit(self.image,(self.screenx, self.screeny))
-            except:
-                pass
-
-    def reload_image(self):
-        self.image = image_set[self.orig_image]
 
     def attack(self, targetted_tile):
         target = targetted_tile.ents[0]
@@ -226,8 +205,8 @@ class Entity():
             print("Error! Invalid loot table.")
         
 class Player(Entity):
-    def __init__(self, worldX, worldY, image_id):
-        super().__init__(worldX, worldY, image_id)
+    def __init__(self, worldX, worldY, image):
+        super().__init__(worldX, worldY, image)
         self.name = "Player"
         self.last_unloaded_pos_x = self.worldX
         self.last_unloaded_pos_y = self.worldY
@@ -259,22 +238,6 @@ class Player(Entity):
             else:
                 print("Tile is inaccessible.")
                 pass
-        except:
-            pass
-    
-    def renderEnt(self):
-        global screen_origin_x
-        global screen_origin_y
-        global static
-        global tile_size
-        if static == False:
-            self.screenx = screen_origin_x+camera_offsetx
-            self.screeny = screen_origin_y+camera_offsety
-        else:
-            self.screenx = screen_origin_x+(self.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
-            self.screeny = screen_origin_y+(self.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
-        try:
-            screen.blit(self.image,(self.screenx, self.screeny))
         except:
             pass
 
@@ -468,10 +431,17 @@ def render_screen():
         print("Avg Frame Time: {}".format(time_average/60))
         time_average = 0
         frame_count = 0
+
+
             
     for ent in master_entity_table:
         open_ent = master_entity_table[ent]
-        open_ent.renderEnt()
+        screenx = screen_origin_x+(open_ent.worldX*tile_size)+(player_x_offset*tile_size)+camera_offsetx
+        screeny = screen_origin_y+(open_ent.worldY*tile_size)+(player_y_offset*tile_size)+camera_offsety
+        try:
+            screen.blit(image_set[open_ent.image],(screenx, screeny))
+        except:
+            pass
 
 def unload_tiles():
     global master_tile_table
